@@ -45,8 +45,9 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
+    "fallow": "fallow",
     "test": "node test/parse.check.ts && node test/decode.check.ts",
-    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run fallow",
     "changeset": "changeset",
     "prepare": "lefthook install"
   },
@@ -62,13 +63,16 @@
     "@opentui/solid": "0.6.6",
     "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "24.19.2",
-    "effect": "4.0.1",
+    "fallow": "3.34.1",
     "lefthook": "2.2.2",
     "oxfmt": "0.73.0",
     "oxlint": "1.88.0",
     "oxlint-tsgolint": "7.0.2004",
-    "solid-js": "1.9.17",
     "typescript": "7.0.2"
+  },
+  "peerDependencies": {
+    "effect": "4.0.1",
+    "solid-js": "1.9.17"
   },
   "packageManager": "pnpm@12.13.0"
 }

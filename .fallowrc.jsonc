@@ -1,0 +1,8 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  // OpenCode resolves a locally checked-out plugin directory by trying
+  // <root>/server and <root>/tui with extension inference, so the root shims
+  // are real runtime entry points even though package.json never mentions
+  // them. Declaring them as entries keeps dead-code analysis honest.
+  "entry": ["server.ts", "tui.ts"],
+}

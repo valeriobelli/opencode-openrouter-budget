@@ -2,7 +2,7 @@ pre-commit:
   parallel: true
   commands:
     lint:
-      glob: '*.{ts,tsx,js,mjs,cjs,json,jsonc,md,yml,yaml}'
+      glob: '*.{ts,tsx,js,mjs,cjs}'
       run: pnpm exec oxlint {staged_files}
     format:
       glob: '*.{ts,tsx,js,mjs,cjs,json,jsonc,md,yml,yaml}'
