@@ -6,6 +6,7 @@ const sse = readFileSync(new URL('../fixtures/sse-sample.txt', import.meta.url),
 
 // SSE transcript: usage arrives in the final data chunk
 const captured = parseResponseText(sse, 'text/event-stream; charset=utf-8')
+
 assert.ok(captured, 'expected usage to be captured from SSE')
 assert.equal(captured.generationID, 'gen-01')
 assert.equal(captured.model, 'anthropic/claude-sonnet-4.5')
@@ -24,6 +25,7 @@ const json = parseResponseText(
   }),
   'application/json',
 )
+
 assert.ok(json)
 assert.equal(json.model, 'openai/gpt-5.2')
 assert.equal(json.cost, 0.01)
@@ -32,6 +34,7 @@ assert.equal(json.cost, 0.01)
 const partial = parseSSE(
   'data: {"id":"gen-03","model":"x","usage":{"prompt_tokens":1,"completion_tokens":1}}',
 )
+
 assert.ok(partial)
 assert.equal(partial.cost, null)
 assert.equal(partial.promptTokens, 1)

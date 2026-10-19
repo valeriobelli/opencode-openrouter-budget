@@ -13,13 +13,17 @@ const count = (value: number) => value.toLocaleString('en-US')
 
 function keyBudgetLine(wallet: Wallet | null): string {
   if (!wallet) return ''
+
   if (typeof wallet.keyLimitRemaining === 'number') {
     const reset = wallet.keyLimitReset ? ` (${wallet.keyLimitReset})` : ''
+
     return `$${wallet.keyLimitRemaining.toFixed(2)} key left${reset}`
   }
+
   if (typeof wallet.keyLimit === 'number' && typeof wallet.keyUsage === 'number') {
     return `$${Math.max(0, wallet.keyLimit - wallet.keyUsage).toFixed(2)} key left`
   }
+
   return ''
 }
 
@@ -35,20 +39,25 @@ function walletDetailLines(wallet: Wallet | null): string[] {
   if (!wallet) return ['Wallet: no data yet']
   const lines: string[] = []
   const parts: string[] = []
+
   if (wallet.label) parts.push(`Key: ${wallet.label}`)
   if (typeof wallet.keyUsage === 'number')
     parts.push(`lifetime usage $${wallet.keyUsage.toFixed(2)}`)
   if (parts.length > 0) lines.push(parts.join(' · '))
+
   if (typeof wallet.creditsRemaining === 'number') {
     lines.push(
       `Credits: $${wallet.creditsRemaining.toFixed(2)} remaining ($${(wallet.creditsUsage ?? 0).toFixed(2)} used of $${(wallet.creditsTotal ?? 0).toFixed(2)})`,
     )
   }
+
   if (wallet.creditsUnavailable) {
     lines.push('Credits: not readable with this key (management key required)')
   }
+
   if (wallet.reason) lines.push(`Note: ${wallet.reason}`)
   lines.push(`Fetched: ${new Date(wallet.at).toLocaleTimeString('en-US', { hour12: false })}`)
+
   return lines
 }
 
@@ -73,15 +82,21 @@ function CostDialog(props: { summary: SummaryResult; onRefresh: () => void }) {
   // Sidebar block, mirrored so the dialog is a standalone replacement when the
   // sidebar does not fit on screen.
   const block: string[] = ['OpenRouter budget']
+
   block.push(`Session ${money(s.session.totalUSD)} · ${s.session.requests} req`)
   const newest = [...s.entries].at(-1)
+
   if (newest) {
     const cost = typeof newest.cost === 'number' ? ` · ${money(newest.cost)}` : ''
+
     block.push(`Last: ${newest.model ?? 'unknown'}${cost}`)
   }
+
   const keyLine = keyBudgetLine(s.wallet)
+
   if (keyLine) block.push(keyLine)
   const globalLine = globalBudgetLine(s.wallet)
+
   if (globalLine) block.push(globalLine)
 
   // Two-line rows: time, model [kind], and an aligned cost column; token
@@ -90,6 +105,7 @@ function CostDialog(props: { summary: SummaryResult; onRefresh: () => void }) {
     const time = new Date(entry.ts).toLocaleTimeString('en-US', { hour12: false })
     const modelKind = `${entry.model ?? 'unknown'} [${entry.kind}]`
     const cost = typeof entry.cost === 'number' ? money(entry.cost) : '—'
+
     return {
       first: `${time}  ${modelKind.padEnd(46)}${cost}`,
       second: `          in ${count(entry.promptTokens ?? 0)} → out ${count(entry.completionTokens ?? 0)}`,
@@ -150,6 +166,7 @@ export default Plugin.define({
         lastCost: number | null
         requests: number
       }
+
       mutate((draft) => {
         draft.sessions[data.sessionID] = {
           totalUSD: data.totalUSD,
@@ -163,6 +180,7 @@ export default Plugin.define({
     const stopWallet = rpc.events.on('wallet.updated', async () => {
       try {
         const result = (await rpc.wallet({})) as { wallet: Wallet | null }
+
         mutate((draft) => {
           draft.wallet = result.wallet
         })
@@ -174,6 +192,7 @@ export default Plugin.define({
     void (async () => {
       try {
         const result = (await rpc.wallet({})) as { wallet: Wallet | null }
+
         mutate((draft) => {
           draft.wallet = result.wallet
         })
@@ -186,15 +205,19 @@ export default Plugin.define({
     // a ledger. Pull it once per session so the sidebar is accurate immediately.
     const hydrated = new Set<string>()
     const hydrating = new Set<string>()
+
     const hydrate = (sessionID: string) => {
       if (!sessionID || hydrated.has(sessionID) || hydrating.has(sessionID)) return
       hydrating.add(sessionID)
+
       void rpc
         .summary({ sessionID })
         .then((result) => {
           const summary = result as SummaryResult
+
           if (summary.entries.length === 0) return
           const last = summary.entries[summary.entries.length - 1]
+
           mutate((draft) => {
             draft.sessions[sessionID] = {
               totalUSD: summary.session.totalUSD,
@@ -217,13 +240,16 @@ export default Plugin.define({
         // Reactive: follows the prompt's selected model, so switching providers
         // shows/hides the block immediately.
         const model = context.ui.model.current()
+
         if (model?.providerID !== 'openrouter') return <box />
 
         const session = state.sessions[sessionID]
+
         if (!session) hydrate(sessionID)
         const keyLine = keyBudgetLine(state.wallet)
         const globalLine = globalBudgetLine(state.wallet)
         const fg = context.theme.text.base
+
         return (
           <box>
             <text fg={fg}>OpenRouter</text>
@@ -250,6 +276,7 @@ export default Plugin.define({
       const route = context.ui.router.current()
       const sessionID = route.type === 'session' ? route.sessionID : undefined
       let initial: SummaryResult
+
       try {
         initial = (await rpc.summary({ sessionID: sessionID ?? '' })) as SummaryResult
       } catch (error) {
@@ -257,12 +284,16 @@ export default Plugin.define({
           message: `OpenRouter budget unavailable: ${String(error)}`,
           variant: 'error',
         })
+
         return
       }
+
       const [summary, setSummary] = createSignal<SummaryResult>(initial)
+
       const onRefresh = async () => {
         try {
           const result = (await rpc.refresh({})) as { wallet: Wallet | null }
+
           setSummary((prev) => ({ ...prev, wallet: result.wallet }))
         } catch (error) {
           context.ui.toast.show({
@@ -271,7 +302,9 @@ export default Plugin.define({
           })
         }
       }
+
       context.ui.dialog.set({ size: 'xlarge', centered: true })
+
       context.ui.dialog.show(
         () => <CostDialog summary={summary()} onRefresh={() => void onRefresh()} />,
         () => {},
