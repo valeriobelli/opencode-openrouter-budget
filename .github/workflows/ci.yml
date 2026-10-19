@@ -72,7 +72,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write # upload fallow SARIF results to code scanning
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -82,5 +81,9 @@ jobs:
         with:
           version: '3.34.1'
           command: audit
-          sarif: true
+          # fallow 3.34 emits a multi-run SARIF, which code scanning rejects
+          # ("multiple SARIF runs with the same category", changelog
+          # 2025-07-21). Annotations and the job summary still surface
+          # findings; re-enable once fallow ships a single-run SARIF.
+          sarif: false
           branded-token: false
