@@ -1,17 +1,11 @@
 import { Plugin, usePlugin } from '@opencode/plugin/tui'
 import { createSignal } from 'solid-js'
-import { CostContract, type CostEntry, type Wallet } from './rpc.js'
-
-interface SummaryResult {
-  session: { sessionID: string; startedAt: number; totalUSD: number; requests: number }
-  entries: CostEntry[]
-  wallet: Wallet | null
-}
+import { CostContract, type SummaryResult, type WalletSnapshot } from './rpc.js'
 
 const money = (value: number) => `$${value.toFixed(4)}`
 const count = (value: number) => value.toLocaleString('en-US')
 
-function keyBudgetLine(wallet: Wallet | null): string {
+function keyBudgetLine(wallet: WalletSnapshot | null): string {
   if (!wallet) {
     return ''
   }
@@ -31,13 +25,13 @@ function keyBudgetLine(wallet: Wallet | null): string {
 
 // Global account credits: shown only when the key can read them (e.g. the
 // workspace admin). Member keys get no data here and render nothing.
-function globalBudgetLine(wallet: Wallet | null): string | null {
+function globalBudgetLine(wallet: WalletSnapshot | null): string | null {
   return typeof wallet?.creditsRemaining === 'number'
     ? `Global: $${wallet.creditsRemaining.toFixed(2)} left`
     : null
 }
 
-function walletDetailLines(wallet: Wallet | null): string[] {
+function walletDetailLines(wallet: WalletSnapshot | null): string[] {
   if (!wallet) {
     return ['Wallet: no data yet']
   }
@@ -174,18 +168,12 @@ export default Plugin.define({
           string,
           { totalUSD: number; lastModel: string | null; lastCost: number | null; requests: number }
         >,
-        wallet: null as Wallet | null,
+        wallet: null as WalletSnapshot | null,
       },
     })
 
     const stopUpdated = rpc.events.on('updated', (event) => {
-      const data = event.data as {
-        sessionID: string
-        totalUSD: number
-        lastModel: string | null
-        lastCost: number | null
-        requests: number
-      }
+      const data = event.data
 
       mutate((draft) => {
         draft.sessions[data.sessionID] = {
@@ -199,7 +187,7 @@ export default Plugin.define({
 
     const stopWallet = rpc.events.on('wallet.updated', async () => {
       try {
-        const result = (await rpc.wallet({})) as { wallet: Wallet | null }
+        const result = await rpc.wallet({})
 
         mutate((draft) => {
           draft.wallet = result.wallet
@@ -211,7 +199,7 @@ export default Plugin.define({
 
     void (async () => {
       try {
-        const result = (await rpc.wallet({})) as { wallet: Wallet | null }
+        const result = await rpc.wallet({})
 
         mutate((draft) => {
           draft.wallet = result.wallet
@@ -235,9 +223,7 @@ export default Plugin.define({
 
       void rpc
         .summary({ sessionID })
-        .then((result) => {
-          const summary = result as SummaryResult
-
+        .then((summary) => {
           if (summary.entries.length === 0) {
             return
           }
@@ -309,7 +295,7 @@ export default Plugin.define({
       let initial: SummaryResult
 
       try {
-        initial = (await rpc.summary({ sessionID: sessionID ?? '' })) as SummaryResult
+        initial = await rpc.summary({ sessionID: sessionID ?? '' })
       } catch (error) {
         context.ui.toast.show({
           message: `OpenRouter budget unavailable: ${String(error)}`,
@@ -323,7 +309,7 @@ export default Plugin.define({
 
       const onRefresh = async () => {
         try {
-          const result = (await rpc.refresh({})) as { wallet: Wallet | null }
+          const result = await rpc.refresh({})
 
           setSummary((prev) => ({ ...prev, wallet: result.wallet }))
         } catch (error) {

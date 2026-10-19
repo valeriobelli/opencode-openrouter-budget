@@ -1,147 +1,113 @@
 import { Rpc } from '@opencode/plugin/rpc'
+import { Schema } from 'effect'
 
-/** Wallet/key snapshot from OpenRouter. `reason` explains missing data. */
-export interface Wallet {
-  at: number
-  label?: string
-  keyUsage?: number
-  keyLimit?: number | null
-  keyLimitRemaining?: number | null
-  keyLimitReset?: string | null
-  creditsTotal?: number
-  creditsUsage?: number
-  creditsRemaining?: number
-  creditsUnavailable?: boolean
-  reason?: string
-}
+// Schemas are the single source of truth: the RPC contract validates against
+// them and the exported types below are derived from them.
+//
+// Contract schemas are wrapped in Schema.toStandardSchemaV1: OpenCode's RPC
+// accepts Standard Schema v1 (or JSON Schema) for portable contracts, and the
+// facade preserves the full effect type so Rpc.Input/Output still resolve
+// through Schema.Top instead of collapsing to unknown.
 
-/** One captured OpenRouter response. */
-export interface CostEntry {
-  ts: number
-  kind: string
-  model: string | null
-  cost: number | null
-  promptTokens: number | null
-  completionTokens: number | null
-  generationID: string | null
-}
+type DeepMutable<T> = T extends readonly (infer E)[]
+  ? DeepMutable<E>[]
+  : T extends object
+    ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
+    : T
 
-/** Per-session spend ledger. Persisted under `spend/<sessionID>`. */
-export interface SessionLedger {
-  sessionID: string
-  startedAt: number
-  totalUSD: number
-  entries: CostEntry[]
-}
+export const WalletSchema = Schema.Struct({
+  at: Schema.Number,
+  label: Schema.optional(Schema.String),
+  keyUsage: Schema.optional(Schema.Number),
+  keyLimit: Schema.optional(Schema.NullOr(Schema.Number)),
+  keyLimitRemaining: Schema.optional(Schema.NullOr(Schema.Number)),
+  keyLimitReset: Schema.optional(Schema.NullOr(Schema.String)),
+  creditsTotal: Schema.optional(Schema.Number),
+  creditsUsage: Schema.optional(Schema.Number),
+  creditsRemaining: Schema.optional(Schema.Number),
+  creditsUnavailable: Schema.optional(Schema.Boolean),
+  reason: Schema.optional(Schema.String),
+})
 
-const walletSchema = {
-  type: ['object', 'null'] as const,
-  properties: {
-    at: { type: 'number' },
-    label: { type: 'string' },
-    keyUsage: { type: 'number' },
-    keyLimit: { type: ['number', 'null'] },
-    keyLimitRemaining: { type: ['number', 'null'] },
-    keyLimitReset: { type: ['string', 'null'] },
-    creditsTotal: { type: 'number' },
-    creditsUsage: { type: 'number' },
-    creditsRemaining: { type: 'number' },
-    creditsUnavailable: { type: 'boolean' },
-    reason: { type: 'string' },
-  },
-  required: ['at'],
-  additionalProperties: false,
-}
+export const CostEntrySchema = Schema.Struct({
+  ts: Schema.Number,
+  kind: Schema.String,
+  model: Schema.NullOr(Schema.String),
+  cost: Schema.NullOr(Schema.Number),
+  promptTokens: Schema.NullOr(Schema.Number),
+  completionTokens: Schema.NullOr(Schema.Number),
+  generationID: Schema.NullOr(Schema.String),
+})
 
-const entrySchema = {
-  type: 'object',
-  properties: {
-    ts: { type: 'number' },
-    kind: { type: 'string' },
-    model: { type: ['string', 'null'] },
-    cost: { type: ['number', 'null'] },
-    promptTokens: { type: ['number', 'null'] },
-    completionTokens: { type: ['number', 'null'] },
-    generationID: { type: ['string', 'null'] },
-  },
-  required: ['ts', 'kind', 'model', 'cost', 'promptTokens', 'completionTokens', 'generationID'],
-  additionalProperties: false,
-}
+export const SessionLedgerSchema = Schema.Struct({
+  sessionID: Schema.String,
+  startedAt: Schema.Number,
+  totalUSD: Schema.Number,
+  entries: Schema.Array(CostEntrySchema),
+})
+
+const SummaryInput = Schema.Struct({
+  sessionID: Schema.optional(Schema.String),
+})
+
+const SummaryOutput = Schema.Struct({
+  session: Schema.Struct({
+    sessionID: Schema.String,
+    startedAt: Schema.Number,
+    totalUSD: Schema.Number,
+    requests: Schema.Number,
+  }),
+  entries: Schema.Array(CostEntrySchema),
+  wallet: Schema.NullOr(WalletSchema),
+})
+
+const WalletOutput = Schema.Struct({
+  wallet: Schema.NullOr(WalletSchema),
+})
+
+const EmptyInput = Schema.Struct({})
+
+const UpdatedEvent = Schema.Struct({
+  sessionID: Schema.String,
+  totalUSD: Schema.Number,
+  lastModel: Schema.NullOr(Schema.String),
+  lastCost: Schema.NullOr(Schema.Number),
+  requests: Schema.Number,
+})
+
+const WalletUpdatedEvent = Schema.Struct({
+  at: Schema.Number,
+})
 
 /** Shared contract between src/index.ts (server) and src/tui.tsx (CLI). */
 export const CostContract = Rpc.define({
   id: 'openrouter-budget',
   methods: {
     summary: {
-      input: {
-        type: 'object',
-        properties: {
-          sessionID: { type: 'string', description: 'Session to report. Empty means no session.' },
-        },
-        additionalProperties: false,
-      },
-      output: {
-        type: 'object',
-        properties: {
-          session: {
-            type: 'object',
-            properties: {
-              sessionID: { type: 'string' },
-              startedAt: { type: 'number' },
-              totalUSD: { type: 'number' },
-              requests: { type: 'number' },
-            },
-            required: ['sessionID', 'startedAt', 'totalUSD', 'requests'],
-            additionalProperties: false,
-          },
-          entries: { type: 'array', items: entrySchema },
-          wallet: walletSchema,
-        },
-        required: ['session', 'entries', 'wallet'],
-        additionalProperties: false,
-      },
+      input: Schema.toStandardSchemaV1(SummaryInput),
+      output: Schema.toStandardSchemaV1(SummaryOutput),
     },
     wallet: {
-      input: { type: 'object', properties: {}, additionalProperties: false },
-      output: {
-        type: 'object',
-        properties: { wallet: walletSchema },
-        required: ['wallet'],
-        additionalProperties: false,
-      },
+      input: Schema.toStandardSchemaV1(EmptyInput),
+      output: Schema.toStandardSchemaV1(WalletOutput),
     },
     refresh: {
-      input: { type: 'object', properties: {}, additionalProperties: false },
-      output: {
-        type: 'object',
-        properties: { wallet: walletSchema },
-        required: ['wallet'],
-        additionalProperties: false,
-      },
+      input: Schema.toStandardSchemaV1(EmptyInput),
+      output: Schema.toStandardSchemaV1(WalletOutput),
     },
   },
   events: {
     updated: {
-      schema: {
-        type: 'object',
-        properties: {
-          sessionID: { type: 'string' },
-          totalUSD: { type: 'number' },
-          lastModel: { type: ['string', 'null'] },
-          lastCost: { type: ['number', 'null'] },
-          requests: { type: 'number' },
-        },
-        required: ['sessionID', 'totalUSD', 'lastModel', 'lastCost', 'requests'],
-        additionalProperties: false,
-      },
+      schema: Schema.toStandardSchemaV1(UpdatedEvent),
     },
     'wallet.updated': {
-      schema: {
-        type: 'object',
-        properties: { at: { type: 'number' } },
-        required: ['at'],
-        additionalProperties: false,
-      },
+      schema: Schema.toStandardSchemaV1(WalletUpdatedEvent),
     },
   },
 })
+
+export type Wallet = DeepMutable<typeof WalletSchema.Type>
+export type WalletSnapshot = typeof WalletSchema.Type
+export type CostEntry = DeepMutable<typeof CostEntrySchema.Type>
+export type SessionLedger = DeepMutable<typeof SessionLedgerSchema.Type>
+export type SummaryResult = typeof SummaryOutput.Type

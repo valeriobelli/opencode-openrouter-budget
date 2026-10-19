@@ -1,4 +1,5 @@
 import { Plugin } from '@opencode/plugin'
+import { decodeCredits, decodeKeyInfo, decodeLegacyAuthKey } from './decode.js'
 import { parseResponseText } from './parse.js'
 import { CostContract, type CostEntry, type SessionLedger, type Wallet } from './rpc.js'
 
@@ -120,38 +121,26 @@ export default Plugin.define({
         const next: Wallet = { at: now }
 
         try {
-          const keyInfo = (await fetchJSON('https://openrouter.ai/api/v1/key', key)) as {
-            data?: {
-              label?: unknown
-              usage?: unknown
-              limit?: unknown
-              limit_remaining?: unknown
-              limit_reset?: unknown
-            }
-          }
+          const keyInfo = decodeKeyInfo(await fetchJSON('https://openrouter.ai/api/v1/key', key))
 
           if (keyInfo?.data) {
-            next.label = typeof keyInfo.data.label === 'string' ? keyInfo.data.label : undefined
-            next.keyUsage = typeof keyInfo.data.usage === 'number' ? keyInfo.data.usage : undefined
-            next.keyLimit = typeof keyInfo.data.limit === 'number' ? keyInfo.data.limit : null
-
-            next.keyLimitRemaining =
-              typeof keyInfo.data.limit_remaining === 'number' ? keyInfo.data.limit_remaining : null
-
-            next.keyLimitReset =
-              typeof keyInfo.data.limit_reset === 'string' ? keyInfo.data.limit_reset : null
+            next.label = keyInfo.data.label
+            next.keyUsage = keyInfo.data.usage
+            next.keyLimit = keyInfo.data.limit ?? null
+            next.keyLimitRemaining = keyInfo.data.limit_remaining ?? null
+            next.keyLimitReset = keyInfo.data.limit_reset ?? null
           }
         } catch {
           // /api/v1/key unavailable — fall back to the legacy key endpoint.
           try {
-            const auth = (await fetchJSON('https://openrouter.ai/api/v1/auth/key', key)) as {
-              data?: { label?: unknown; usage?: unknown; limit?: unknown }
-            }
+            const auth = decodeLegacyAuthKey(
+              await fetchJSON('https://openrouter.ai/api/v1/auth/key', key),
+            )
 
             if (auth?.data) {
-              next.label = typeof auth.data.label === 'string' ? auth.data.label : undefined
-              next.keyUsage = typeof auth.data.usage === 'number' ? auth.data.usage : undefined
-              next.keyLimit = typeof auth.data.limit === 'number' ? auth.data.limit : null
+              next.label = auth.data.label
+              next.keyUsage = auth.data.usage
+              next.keyLimit = auth.data.limit ?? null
             }
           } catch (error) {
             next.reason = `key info failed: ${String(error)}`
@@ -159,18 +148,13 @@ export default Plugin.define({
         }
 
         try {
-          const credits = (await fetchJSON('https://openrouter.ai/api/v1/credits', key)) as {
-            data?: { total_credits?: unknown; total_usage?: unknown }
-          }
+          const credits = decodeCredits(
+            await fetchJSON('https://openrouter.ai/api/v1/credits', key),
+          )
 
           if (credits?.data) {
-            next.creditsTotal =
-              typeof credits.data.total_credits === 'number'
-                ? credits.data.total_credits
-                : undefined
-
-            next.creditsUsage =
-              typeof credits.data.total_usage === 'number' ? credits.data.total_usage : undefined
+            next.creditsTotal = credits.data.total_credits
+            next.creditsUsage = credits.data.total_usage
 
             if (typeof next.creditsTotal === 'number' && typeof next.creditsUsage === 'number') {
               next.creditsRemaining = Math.max(0, next.creditsTotal - next.creditsUsage)

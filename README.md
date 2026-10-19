@@ -77,6 +77,11 @@ You can also pin a version:
   lifetime usage) and `GET /api/v1/credits` (account credits; silently
   skipped when the key cannot read them). It runs at startup, every 5
   minutes, and on demand from the `/cost` dialog.
+- OpenRouter responses are decoded with [Effect Schema](https://effect.website)
+  (the same schema library OpenCode's runtime provides to plugins): lenient,
+  so shape drift degrades to missing data instead of hard failures. The RPC
+  contract between the server and TUI halves is defined with the same
+  schemas, exposed through Standard Schema v1.
 - The TUI plugin subscribes over the plugin RPC channel and renders the
   sidebar block and the `/cost` dialog.
 

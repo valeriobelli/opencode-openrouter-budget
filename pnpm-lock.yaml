@@ -194,6 +194,9 @@ importers:
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
+      effect:
+        specifier: 4.0.1
+        version: 4.0.1
       lefthook:
         specifier: 2.2.2
         version: 2.2.2
