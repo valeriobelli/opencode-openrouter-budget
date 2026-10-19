@@ -1,5 +1,8 @@
-export default {
+import type { UserConfig } from '@commitlint/types'
+
+const config: UserConfig = {
   extends: ['@commitlint/config-conventional'],
-  // Changesets' automation commits "Version Packages" on release PRs.
   ignores: [(commit) => commit === 'Version Packages'],
 }
+
+export default config
