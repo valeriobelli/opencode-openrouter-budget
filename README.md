@@ -34,7 +34,7 @@ Global: $392.08 left
 The block is hidden entirely when the session is not talking to OpenRouter,
 and shows `waiting for first request…` until the first response completes.
 
-**`/cost` command** — a dialog with the full picture: every captured request
+**`/openrouter-budget` command** — a dialog with the full picture: every captured request
 (time, kind, routed model, in/out tokens, cost, generation ID), the session
 total, and the wallet block — key label, key budget, account credits, and
 fetch time. Press `r` to refresh the wallet, `Esc` to close.
@@ -76,14 +76,14 @@ You can also pin a version:
 - The wallet poller calls `GET /api/v1/key` (key budget, reset period,
   lifetime usage) and `GET /api/v1/credits` (account credits; silently
   skipped when the key cannot read them). It runs at startup, every 5
-  minutes, and on demand from the `/cost` dialog.
+  minutes, and on demand from the `/openrouter-budget` dialog.
 - OpenRouter responses are decoded with [Effect Schema](https://effect.website)
   (the same schema library OpenCode's runtime provides to plugins): lenient,
   so shape drift degrades to missing data instead of hard failures. The RPC
   contract between the server and TUI halves is defined with the same
   schemas, exposed through Standard Schema v1.
 - The TUI plugin subscribes over the plugin RPC channel and renders the
-  sidebar block and the `/cost` dialog.
+  sidebar block and the `/openrouter-budget` dialog.
 
 ## Privacy
 
@@ -97,7 +97,7 @@ machine; the plugin collects no telemetry and reports nothing anywhere else.
   installation is not reconstructed.
 - Only requests made through this OpenCode instance are counted.
 - Auxiliary requests (title generation, compaction) are counted too, and
-  labeled by kind in the `/cost` dialog.
+  labeled by kind in the `/openrouter-budget` dialog.
 - OpenCode's built-in `$0.00` figure for `openrouter/auto` remains — this
   plugin adds its own, labeled block beside it.
 
