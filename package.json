@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-openrouter-budget",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "OpenCode plugin that surfaces real OpenRouter spend: per-request costs in the session sidebar, the model the router picked, key budget, and account credits",
   "keywords": [
     "budget",
