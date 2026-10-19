@@ -68,11 +68,10 @@ function extract(chunk: unknown): CapturedUsage | null {
   }
 }
 
-function chunkUsage(payload: string): CapturedUsage | null {
+const extractText = (text: string): CapturedUsage | null => {
   try {
-    return extract(JSON.parse(payload))
+    return extract(JSON.parse(text))
   } catch {
-    // Malformed line — never throw.
     return null
   }
 }
@@ -88,22 +87,14 @@ function usageChunk(line: string): CapturedUsage | null {
     return null
   }
 
-  return chunkUsage(payload)
+  return extractText(payload)
 }
 
 /** Parse an SSE transcript ("data: {...}" lines); return the last chunk carrying usage. */
 export function parseSSE(text: string): CapturedUsage | null {
-  let result: CapturedUsage | null = null
-
-  for (const rawLine of text.split('\n')) {
-    const captured = usageChunk(rawLine.trimEnd())
-
-    if (captured !== null) {
-      result = captured
-    }
-  }
-
-  return result
+  return text
+    .split('\n')
+    .reduce((acc, rawLine) => usageChunk(rawLine.trimEnd()) ?? acc, null as CapturedUsage | null)
 }
 
 /** Parse a completed response body: SSE stream transcript or plain JSON. */
@@ -115,11 +106,7 @@ export function parseResponseText(text: string, contentType: string): CapturedUs
   const trimmed = text.trim()
 
   if (trimmed.startsWith('{')) {
-    try {
-      return extract(JSON.parse(trimmed))
-    } catch {
-      return null
-    }
+    return extractText(trimmed)
   }
 
   return parseSSE(text)

@@ -31,6 +31,12 @@ const CreditsResponse = Schema.Struct({
   }),
 })
 
+export const CredentialKey = Schema.NonEmptyString
+
+export const Credential = Schema.Struct({
+  key: CredentialKey,
+})
+
 export type KeyInfo = typeof KeyInfoResponse.Type
 export type LegacyAuthKey = typeof LegacyAuthKeyResponse.Type
 export type Credits = typeof CreditsResponse.Type

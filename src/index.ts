@@ -1,13 +1,20 @@
 import { Plugin } from '@opencode/plugin'
-import { decodeCredits, decodeKeyInfo, decodeLegacyAuthKey } from './decode.js'
-import { parseResponseText } from './parse.js'
+import {
+  Credential,
+  CredentialKey,
+  decodeCredits,
+  decodeKeyInfo,
+  decodeLegacyAuthKey,
+} from './decode.ts'
+import { parseResponseText } from './parse.ts'
 import {
   CostContract,
   type CostEntry,
   type SessionLedger,
   type UpdatedEvent,
   type Wallet,
-} from './rpc.js'
+} from './rpc.ts'
+import { Result, Schema } from 'effect'
 
 const OPENROUTER_INTEGRATION = 'openrouter'
 const KEY_URL = 'https://openrouter.ai/api/v1/key'
@@ -57,6 +64,7 @@ function warn(message: string): void {
   }
 
   lastWarnAt = now
+
   console.warn(`[openrouter-budget] ${message}`)
 }
 
@@ -98,31 +106,17 @@ async function saveLedger(storage: Storage, ledger: SessionLedger): Promise<void
 }
 
 function processEnvKey(): string | null {
-  const envKey = process.env.OPENROUTER_API_KEY
+  const decode = Schema.decodeUnknownResult(CredentialKey)
+  const envKey = decode(process.env.OPENROUTER_API_KEY)
 
-  if (typeof envKey === 'string' && envKey.length > 0) {
-    return envKey
-  }
-
-  return null
-}
-
-function keyString(value: unknown): string | null {
-  if (typeof value !== 'string' || value.length === 0) {
-    return null
-  }
-
-  return value
+  return Result.isFailure(envKey) ? null : envKey.success
 }
 
 function validCredentialKey(credential: unknown): string | null {
-  const record = credential as { type?: string; key?: unknown } | undefined
+  const decode = Schema.decodeUnknownResult(Credential)
+  const decodedCredential = decode(credential)
 
-  if (record === undefined || record.type !== 'key') {
-    return null
-  }
-
-  return keyString(record.key)
+  return Result.isFailure(decodedCredential) ? null : decodedCredential.success.key
 }
 
 async function credentialKey(integration: Integration): Promise<string | null> {
@@ -208,9 +202,11 @@ async function applyKeyInfo(wallet: Wallet, key: string): Promise<void> {
   try {
     const data = keyInfoDataOf(await fetchJSON(KEY_URL, key))
 
-    if (data !== null) {
-      assignKeyFields(wallet, data)
+    if (!data) {
+      return
     }
+
+    assignKeyFields(wallet, data)
   } catch {
     await applyKeyInfoFallback(wallet, key)
   }
@@ -268,7 +264,7 @@ async function pollWallet(deps: ServerDeps, force = false): Promise<Wallet | nul
   const now = Date.now()
   const fresh = freshCache(force, now)
 
-  if (fresh !== null) {
+  if (!fresh) {
     return fresh
   }
 
@@ -383,7 +379,9 @@ async function consume(
   const entry = entryOf(kind, captured)
 
   recordEntry(ledger, entry)
+
   await saveLedger(deps.storage, ledger)
+
   console.log(describeCapture(entry, ledger, sessionID))
 
   try {
@@ -439,6 +437,7 @@ function onResponse(deps: ServerDeps, event: HttpResponseEvent): void {
     statusText: event.response.statusText,
     headers: event.response.headers,
   })
+
   void consume(deps, event.sessionID, event.kind, split.clone, split.contentType)
 }
 
@@ -470,6 +469,7 @@ export default Plugin.define({
     }
 
     void pollWallet(deps, true).catch(() => undefined)
+
     const timer = setInterval(
       () => void pollWallet(deps).catch(() => undefined),
       WALLET_INTERVAL_MS,

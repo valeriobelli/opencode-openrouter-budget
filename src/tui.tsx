@@ -1,7 +1,7 @@
 // @jsxImportSource @opentui/solid
 import { Plugin, usePlugin } from '@opencode/plugin/tui'
 import { createSignal } from 'solid-js'
-import { CostContract, type SummaryResult, type UpdatedEvent, type WalletSnapshot } from './rpc.js'
+import { CostContract, type SummaryResult, type UpdatedEvent, type WalletSnapshot } from './rpc.ts'
 
 type TuiContext = ReturnType<typeof usePlugin>
 
@@ -45,13 +45,13 @@ function keyRemaining(wallet: WalletSnapshot): number | null {
 }
 
 function keyBudgetLine(wallet: WalletSnapshot | null): string {
-  if (wallet === null) {
+  if (!wallet) {
     return ''
   }
 
   const remaining = keyRemaining(wallet)
 
-  if (remaining === null) {
+  if (!remaining) {
     return ''
   }
 
@@ -70,22 +70,13 @@ function globalBudgetLine(wallet: WalletSnapshot | null): string | null {
   return `Global: $${wallet.creditsRemaining.toFixed(2)} left`
 }
 
-function keyUsageDetail(wallet: WalletSnapshot): string | null {
-  const parts: string[] = []
-
-  if (wallet.label) {
-    parts.push(`Key: ${wallet.label}`)
-  }
-
-  if (typeof wallet.keyUsage === 'number') {
-    parts.push(`lifetime usage $${wallet.keyUsage.toFixed(2)}`)
-  }
-
-  if (parts.length === 0) {
-    return null
-  }
-
-  return parts.join(' · ')
+function keyUsageDetail(wallet: WalletSnapshot): string {
+  return [
+    ...(wallet.label ? [`Key: ${wallet.label}`] : []),
+    ...(typeof wallet.keyUsage === 'number'
+      ? [`lifetime usage $${wallet.keyUsage.toFixed(2)}`]
+      : []),
+  ].join(' · ')
 }
 
 function creditsDetail(wallet: WalletSnapshot): string | null {
@@ -100,31 +91,21 @@ function creditsDetail(wallet: WalletSnapshot): string | null {
 }
 
 function detailLine(line: string | null): string[] {
-  if (line === null) {
-    return []
-  }
-
-  return [line]
+  return line ? [line] : []
 }
 
 function walletDetailLines(wallet: WalletSnapshot | null): string[] {
-  if (wallet === null) {
-    return ['Wallet: no data yet']
-  }
-
-  const lines = [...detailLine(keyUsageDetail(wallet)), ...detailLine(creditsDetail(wallet))]
-
-  if (wallet.creditsUnavailable) {
-    lines.push('Credits: not readable with this key (management key required)')
-  }
-
-  if (wallet.reason) {
-    lines.push(`Note: ${wallet.reason}`)
-  }
-
-  lines.push(`Fetched: ${new Date(wallet.at).toLocaleTimeString('en-US', { hour12: false })}`)
-
-  return lines
+  return !wallet
+    ? ['Wallet: no data yet']
+    : [
+        ...detailLine(keyUsageDetail(wallet)),
+        ...detailLine(creditsDetail(wallet)),
+        ...(wallet.creditsUnavailable
+          ? ['Credits: not readable with this key (management key required)']
+          : []),
+        ...(wallet.reason ? [`Note: ${wallet.reason}`] : []),
+        `Fetched: ${new Date(wallet.at).toLocaleTimeString('en-US', { hour12: false })}`,
+      ]
 }
 
 function lastEntryLine(entry: SummaryEntry): string {
@@ -134,29 +115,18 @@ function lastEntryLine(entry: SummaryEntry): string {
 }
 
 function summaryLines(summary: SummaryResult): string[] {
-  const lines = [
-    'OpenRouter budget',
-    `Session ${money(summary.session.totalUSD)} · ${summary.session.requests} req`,
-  ]
   const newest = summary.entries.at(-1)
-
-  if (newest !== undefined) {
-    lines.push(lastEntryLine(newest))
-  }
-
   const keyLine = keyBudgetLine(summary.wallet)
-
-  if (keyLine !== '') {
-    lines.push(keyLine)
-  }
 
   const globalLine = globalBudgetLine(summary.wallet)
 
-  if (globalLine !== null) {
-    lines.push(globalLine)
-  }
-
-  return lines
+  return [
+    'OpenRouter budget',
+    `Session ${money(summary.session.totalUSD)} · ${summary.session.requests} req`,
+    ...(newest ? [lastEntryLine(newest)] : []),
+    ...(keyLine ? [keyLine] : []),
+    ...(globalLine ? [globalLine] : []),
+  ]
 }
 
 function applySpendUpdate(mutate: Mutate, data: UpdatedEvent): void {
@@ -204,7 +174,7 @@ function createWalletSubscriber(rpc: BudgetRpc, mutate: Mutate): () => Promise<v
 function summaryToSession(summary: SummaryResult): SessionSummary {
   const last = summary.entries[summary.entries.length - 1]
 
-  if (last === undefined) {
+  if (!last) {
     return {
       totalUSD: summary.session.totalUSD,
       lastModel: null,
@@ -238,7 +208,7 @@ function createHydrator(
     void rpc
       .summary({ sessionID })
       .then((summary) => {
-        if (summary.entries.length === 0) {
+        if (!summary.entries.length) {
           return
         }
 
@@ -274,22 +244,27 @@ function createRefresher(
   }
 }
 
+async function getSummary(
+  deps: { rpc: BudgetRpc; context: TuiContext },
+  sessionID?: string,
+): Promise<SummaryResult> {
+  try {
+    return deps.rpc.summary({ sessionID: sessionID ?? '' })
+  } catch (error) {
+    deps.context.ui.toast.show({
+      message: `OpenRouter budget unavailable: ${String(error)}`,
+      variant: 'error',
+    })
+
+    throw new Error(`OpenRouter budget unavailable: ${String(error)}`)
+  }
+}
+
 function createDialogOpener(deps: { rpc: BudgetRpc; context: TuiContext }): () => Promise<void> {
   return async () => {
     const route = deps.context.ui.router.current()
     const sessionID = route.type === 'session' ? route.sessionID : undefined
-    let initial: SummaryResult
-
-    try {
-      initial = await deps.rpc.summary({ sessionID: sessionID ?? '' })
-    } catch (error) {
-      deps.context.ui.toast.show({
-        message: `OpenRouter budget unavailable: ${String(error)}`,
-        variant: 'error',
-      })
-
-      return
-    }
+    const initial: SummaryResult = await getSummary(deps, sessionID)
 
     const [summary, setSummary] = createSignal<SummaryResult>(initial)
     const refresh = createRefresher(deps, setSummary)
@@ -327,14 +302,14 @@ function SidebarBlock(props: {
       <text fg={fg}>OpenRouter</text>
       <SessionLine session={props.session} fg={fg} />
       {props.session ? <LastLine session={props.session} fg={fg} /> : null}
-      {keyLine !== '' ? <text fg={fg}>{keyLine}</text> : null}
-      {globalLine !== null ? <text fg={fg}>{globalLine}</text> : null}
+      {keyLine ? <text fg={fg}>{keyLine}</text> : null}
+      {globalLine ? <text fg={fg}>{globalLine}</text> : null}
     </box>
   )
 }
 
 function SessionLine(props: { session: SessionSummary | undefined; fg: string }) {
-  if (props.session === undefined) {
+  if (!props.session) {
     return <text fg={props.fg}>waiting for first request…</text>
   }
 
@@ -348,11 +323,7 @@ function SessionLine(props: { session: SessionSummary | undefined; fg: string })
 function LastLine(props: { session: SessionSummary; fg: string }) {
   const line = sessionLine(props.session)
 
-  if (line === null) {
-    return null
-  }
-
-  return <text fg={props.fg}>{line}</text>
+  return line ? <text fg={props.fg}>{line}</text> : null
 }
 
 function SummaryBlock(props: { summary: SummaryResult; fg: string }) {
@@ -387,13 +358,13 @@ function RequestRow(props: { entry: SummaryEntry; fg: string }) {
 }
 
 function RequestList(props: { entries: readonly SummaryEntry[]; fg: string }) {
-  if (props.entries.length === 0) {
+  if (!props.entries.length) {
     return <text fg={props.fg}>No OpenRouter requests captured in this session yet.</text>
   }
 
   return (
     <box>
-      {[...props.entries].reverse().map((entry) => (
+      {props.entries.toReversed().map((entry) => (
         <RequestRow entry={entry} fg={props.fg} />
       ))}
     </box>
