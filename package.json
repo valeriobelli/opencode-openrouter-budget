@@ -73,8 +73,20 @@
     "typescript": "7.0.2"
   },
   "peerDependencies": {
+    "@opentui/solid": ">=0.5.17",
     "effect": "4.0.1",
     "solid-js": "1.9.17"
+  },
+  "peerDependenciesMeta": {
+    "@opentui/solid": {
+      "optional": false
+    },
+    "effect": {
+      "optional": false
+    },
+    "solid-js": {
+      "optional": false
+    }
   },
   "packageManager": "pnpm@12.13.0"
 }
