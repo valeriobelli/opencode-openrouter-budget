@@ -1,0 +1,18 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: '*.{ts,tsx,js,mjs,cjs,json,jsonc,md,yml,yaml}'
+      run: pnpm exec oxlint {staged_files}
+    format:
+      glob: '*.{ts,tsx,js,mjs,cjs,json,jsonc,md,yml,yaml}'
+      run: pnpm exec oxfmt --check {staged_files}
+    zizmor:
+      glob: '.github/**/*.{yml,yaml}'
+      run: pnpm exec zizmor .
+      fail_text: 'zizmor found issues in GitHub Actions workflows'
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
