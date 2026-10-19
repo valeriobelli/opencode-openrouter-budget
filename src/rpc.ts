@@ -111,3 +111,4 @@ export type WalletSnapshot = typeof WalletSchema.Type
 export type CostEntry = DeepMutable<typeof CostEntrySchema.Type>
 export type SessionLedger = DeepMutable<typeof SessionLedgerSchema.Type>
 export type SummaryResult = typeof SummaryOutput.Type
+export type UpdatedEvent = typeof UpdatedEvent.Type

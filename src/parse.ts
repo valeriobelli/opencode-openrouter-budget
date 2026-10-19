@@ -21,31 +21,74 @@ function stringOr(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-function extract(chunk: unknown): CapturedUsage | null {
-  if (!chunk || typeof chunk !== 'object') {
-    return null
-  }
+interface TokenCounts {
+  prompt: number | null
+  completion: number | null
+  cached: number | null
+  reasoning: number | null
+}
 
-  const record = chunk as Record<string, unknown>
-  const usage = record.usage
-
-  if (!usage || typeof usage !== 'object') {
-    return null
-  }
-
-  const usageRecord = usage as Record<string, unknown>
+function tokenCounts(usageRecord: Record<string, unknown>): TokenCounts {
   const promptDetails = (usageRecord.prompt_tokens_details ?? {}) as Record<string, unknown>
   const completionDetails = (usageRecord.completion_tokens_details ?? {}) as Record<string, unknown>
 
   return {
-    generationID: stringOr(record.id),
-    model: stringOr(record.model),
-    cost: numberOr(usageRecord.cost),
-    promptTokens: numberOr(usageRecord.prompt_tokens),
-    completionTokens: numberOr(usageRecord.completion_tokens),
-    cachedTokens: numberOr(promptDetails.cached_tokens),
-    reasoningTokens: numberOr(completionDetails.reasoning_tokens),
+    prompt: numberOr(usageRecord.prompt_tokens),
+    completion: numberOr(usageRecord.completion_tokens),
+    cached: numberOr(promptDetails.cached_tokens),
+    reasoning: numberOr(completionDetails.reasoning_tokens),
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function extract(chunk: unknown): CapturedUsage | null {
+  if (!isRecord(chunk)) {
+    return null
+  }
+
+  const usage = chunk.usage
+
+  if (!isRecord(usage)) {
+    return null
+  }
+
+  const tokens = tokenCounts(usage)
+
+  return {
+    generationID: stringOr(chunk.id),
+    model: stringOr(chunk.model),
+    cost: numberOr(usage.cost),
+    promptTokens: tokens.prompt,
+    completionTokens: tokens.completion,
+    cachedTokens: tokens.cached,
+    reasoningTokens: tokens.reasoning,
+  }
+}
+
+function chunkUsage(payload: string): CapturedUsage | null {
+  try {
+    return extract(JSON.parse(payload))
+  } catch {
+    // Malformed line — never throw.
+    return null
+  }
+}
+
+function usageChunk(line: string): CapturedUsage | null {
+  if (!line.startsWith('data:')) {
+    return null
+  }
+
+  const payload = line.slice(5).trim()
+
+  if (!payload || payload === '[DONE]') {
+    return null
+  }
+
+  return chunkUsage(payload)
 }
 
 /** Parse an SSE transcript ("data: {...}" lines); return the last chunk carrying usage. */
@@ -53,26 +96,10 @@ export function parseSSE(text: string): CapturedUsage | null {
   let result: CapturedUsage | null = null
 
   for (const rawLine of text.split('\n')) {
-    const line = rawLine.trimEnd()
+    const captured = usageChunk(rawLine.trimEnd())
 
-    if (!line.startsWith('data:')) {
-      continue
-    }
-
-    const payload = line.slice(5).trim()
-
-    if (!payload || payload === '[DONE]') {
-      continue
-    }
-
-    try {
-      const captured = extract(JSON.parse(payload))
-
-      if (captured) {
-        result = captured
-      }
-    } catch {
-      // Malformed line — never throw.
+    if (captured !== null) {
+      result = captured
     }
   }
 
