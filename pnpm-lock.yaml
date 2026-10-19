@@ -166,15 +166,9 @@ importers:
 
   .:
     dependencies:
-      '@opencode/plugin':
-        specifier: ^2.0.29
-        version: 2.0.32(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.6.6(typescript@7.0.2)(web-tree-sitter@0.25.10))(@opentui/solid@0.6.6(solid-js@1.9.17)(typescript@7.0.2)(web-tree-sitter@0.25.10))(redis@6.3.0(@opentelemetry/api@1.9.0))(solid-js@1.9.17)
       effect:
-        specifier: 4.0.1
+        specifier: ^4.0.1
         version: 4.0.1
-      solid-js:
-        specifier: 1.9.17
-        version: 1.9.17
     devDependencies:
       '@changesets/changelog-github':
         specifier: 1.0.1
@@ -191,8 +185,11 @@ importers:
       '@commitlint/types':
         specifier: 21.2.3
         version: 21.2.3
+      '@opencode/plugin':
+        specifier: ^2.0.29
+        version: 2.0.32(@opentelemetry/semantic-conventions@1.43.0)(@opentui/core@0.6.6(typescript@7.0.2)(web-tree-sitter@0.25.10))(@opentui/solid@0.6.6(solid-js@1.9.17)(typescript@7.0.2)(web-tree-sitter@0.25.10))(redis@6.3.0(@opentelemetry/api@1.9.0))(solid-js@1.9.17)
       '@opentui/solid':
-        specifier: 0.6.6
+        specifier: ^0.6.6
         version: 0.6.6(solid-js@1.9.17)(typescript@7.0.2)(web-tree-sitter@0.25.10)
       '@stylistic/eslint-plugin':
         specifier: 5.10.0
@@ -215,6 +212,9 @@ importers:
       oxlint-tsgolint:
         specifier: 7.0.2004
         version: 7.0.2004
+      solid-js:
+        specifier: ^1.9.12
+        version: 1.9.17
       typescript:
         specifier: 7.0.2
         version: 7.0.2

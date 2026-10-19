@@ -53,16 +53,14 @@
     "changeset": "changeset",
     "prepare": "lefthook install"
   },
-  "dependencies": {
-    "@opencode/plugin": "^2.0.29"
-  },
   "devDependencies": {
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.3",
     "@commitlint/cli": "21.2.3",
     "@commitlint/config-conventional": "21.2.3",
     "@commitlint/types": "21.2.3",
-    "@opentui/solid": "0.6.6",
+    "@opencode/plugin": "^2.0.29",
+    "@opentui/solid": "^0.6.6",
     "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "24.19.2",
     "fallow": "3.34.1",
@@ -70,14 +68,19 @@
     "oxfmt": "0.73.0",
     "oxlint": "1.88.0",
     "oxlint-tsgolint": "7.0.2004",
+    "solid-js": "^1.9.12",
     "typescript": "7.0.2"
   },
   "peerDependencies": {
+    "@opencode/plugin": "^2.0.29",
     "@opentui/solid": ">=0.5.17",
-    "effect": "4.0.1",
-    "solid-js": "1.9.17"
+    "effect": "^4.0.1",
+    "solid-js": "^1.9.12"
   },
   "peerDependenciesMeta": {
+    "@opencode/plugin": {
+      "optional": false
+    },
     "@opentui/solid": {
       "optional": false
     },
