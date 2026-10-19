@@ -22,11 +22,17 @@ function stringOr(value: unknown): string | null {
 }
 
 function extract(chunk: unknown): CapturedUsage | null {
-  if (!chunk || typeof chunk !== 'object') return null
+  if (!chunk || typeof chunk !== 'object') {
+    return null
+  }
+
   const record = chunk as Record<string, unknown>
   const usage = record.usage
 
-  if (!usage || typeof usage !== 'object') return null
+  if (!usage || typeof usage !== 'object') {
+    return null
+  }
+
   const usageRecord = usage as Record<string, unknown>
   const promptDetails = (usageRecord.prompt_tokens_details ?? {}) as Record<string, unknown>
   const completionDetails = (usageRecord.completion_tokens_details ?? {}) as Record<string, unknown>
@@ -49,15 +55,22 @@ export function parseSSE(text: string): CapturedUsage | null {
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trimEnd()
 
-    if (!line.startsWith('data:')) continue
+    if (!line.startsWith('data:')) {
+      continue
+    }
+
     const payload = line.slice(5).trim()
 
-    if (!payload || payload === '[DONE]') continue
+    if (!payload || payload === '[DONE]') {
+      continue
+    }
 
     try {
       const captured = extract(JSON.parse(payload))
 
-      if (captured) result = captured
+      if (captured) {
+        result = captured
+      }
     } catch {
       // Malformed line — never throw.
     }
@@ -68,7 +81,10 @@ export function parseSSE(text: string): CapturedUsage | null {
 
 /** Parse a completed response body: SSE stream transcript or plain JSON. */
 export function parseResponseText(text: string, contentType: string): CapturedUsage | null {
-  if (contentType.includes('text/event-stream')) return parseSSE(text)
+  if (contentType.includes('text/event-stream')) {
+    return parseSSE(text)
+  }
+
   const trimmed = text.trim()
 
   if (trimmed.startsWith('{')) {

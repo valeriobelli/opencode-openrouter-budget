@@ -14,6 +14,7 @@ export default defineConfig({
     builtin: true,
   },
   rules: {
+    curly: ['error', 'all'],
     '@stylistic/padding-line-between-statements': [
       'error',
       { blankLine: 'always', next: 'return', prev: '*' },

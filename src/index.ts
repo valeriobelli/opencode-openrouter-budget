@@ -17,7 +17,10 @@ export default Plugin.define({
     function warn(message: string) {
       const now = Date.now()
 
-      if (now - lastWarnAt < 24 * 60 * 60 * 1000) return
+      if (now - lastWarnAt < 24 * 60 * 60 * 1000) {
+        return
+      }
+
       lastWarnAt = now
       console.warn(`[openrouter-budget] ${message}`)
     }
@@ -27,7 +30,10 @@ export default Plugin.define({
     async function loadLedger(sessionID: string): Promise<SessionLedger> {
       const cached = ledgers.get(sessionID)
 
-      if (cached) return cached
+      if (cached) {
+        return cached
+      }
+
       let loaded: unknown
 
       try {
@@ -88,7 +94,9 @@ export default Plugin.define({
         signal: AbortSignal.timeout(10_000),
       })
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
 
       return response.json()
     }
@@ -96,7 +104,10 @@ export default Plugin.define({
     async function pollWallet(force = false): Promise<Wallet | null> {
       const now = Date.now()
 
-      if (!force && walletCache && now - walletCache.at < WALLET_MIN_POLL_MS) return walletCache
+      if (!force && walletCache && now - walletCache.at < WALLET_MIN_POLL_MS) {
+        return walletCache
+      }
+
       const key = await resolveKey()
 
       if (!key) {
@@ -241,7 +252,10 @@ export default Plugin.define({
         return
       }
 
-      if (!captured) return
+      if (!captured) {
+        return
+      }
+
       const entry: CostEntry = {
         ts: Date.now(),
         kind,
@@ -288,7 +302,10 @@ export default Plugin.define({
       (event) => {
         const body = event.response.body
 
-        if (!body) return
+        if (!body) {
+          return
+        }
+
         let main: ReadableStream<Uint8Array>
         let clone: ReadableStream<Uint8Array>
 

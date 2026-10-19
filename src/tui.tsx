@@ -12,7 +12,9 @@ const money = (value: number) => `$${value.toFixed(4)}`
 const count = (value: number) => value.toLocaleString('en-US')
 
 function keyBudgetLine(wallet: Wallet | null): string {
-  if (!wallet) return ''
+  if (!wallet) {
+    return ''
+  }
 
   if (typeof wallet.keyLimitRemaining === 'number') {
     const reset = wallet.keyLimitReset ? ` (${wallet.keyLimitReset})` : ''
@@ -36,14 +38,24 @@ function globalBudgetLine(wallet: Wallet | null): string | null {
 }
 
 function walletDetailLines(wallet: Wallet | null): string[] {
-  if (!wallet) return ['Wallet: no data yet']
+  if (!wallet) {
+    return ['Wallet: no data yet']
+  }
+
   const lines: string[] = []
   const parts: string[] = []
 
-  if (wallet.label) parts.push(`Key: ${wallet.label}`)
-  if (typeof wallet.keyUsage === 'number')
+  if (wallet.label) {
+    parts.push(`Key: ${wallet.label}`)
+  }
+
+  if (typeof wallet.keyUsage === 'number') {
     parts.push(`lifetime usage $${wallet.keyUsage.toFixed(2)}`)
-  if (parts.length > 0) lines.push(parts.join(' · '))
+  }
+
+  if (parts.length > 0) {
+    lines.push(parts.join(' · '))
+  }
 
   if (typeof wallet.creditsRemaining === 'number') {
     lines.push(
@@ -55,7 +67,10 @@ function walletDetailLines(wallet: Wallet | null): string[] {
     lines.push('Credits: not readable with this key (management key required)')
   }
 
-  if (wallet.reason) lines.push(`Note: ${wallet.reason}`)
+  if (wallet.reason) {
+    lines.push(`Note: ${wallet.reason}`)
+  }
+
   lines.push(`Fetched: ${new Date(wallet.at).toLocaleTimeString('en-US', { hour12: false })}`)
 
   return lines
@@ -94,10 +109,15 @@ function CostDialog(props: { summary: SummaryResult; onRefresh: () => void }) {
 
   const keyLine = keyBudgetLine(s.wallet)
 
-  if (keyLine) block.push(keyLine)
+  if (keyLine) {
+    block.push(keyLine)
+  }
+
   const globalLine = globalBudgetLine(s.wallet)
 
-  if (globalLine) block.push(globalLine)
+  if (globalLine) {
+    block.push(globalLine)
+  }
 
   // Two-line rows: time, model [kind], and an aligned cost column; token
   // counts on the indented second line so nothing ever wraps.
@@ -207,7 +227,10 @@ export default Plugin.define({
     const hydrating = new Set<string>()
 
     const hydrate = (sessionID: string) => {
-      if (!sessionID || hydrated.has(sessionID) || hydrating.has(sessionID)) return
+      if (!sessionID || hydrated.has(sessionID) || hydrating.has(sessionID)) {
+        return
+      }
+
       hydrating.add(sessionID)
 
       void rpc
@@ -215,7 +238,10 @@ export default Plugin.define({
         .then((result) => {
           const summary = result as SummaryResult
 
-          if (summary.entries.length === 0) return
+          if (summary.entries.length === 0) {
+            return
+          }
+
           const last = summary.entries[summary.entries.length - 1]
 
           mutate((draft) => {
@@ -241,11 +267,16 @@ export default Plugin.define({
         // shows/hides the block immediately.
         const model = context.ui.model.current()
 
-        if (model?.providerID !== 'openrouter') return <box />
+        if (model?.providerID !== 'openrouter') {
+          return <box />
+        }
 
         const session = state.sessions[sessionID]
 
-        if (!session) hydrate(sessionID)
+        if (!session) {
+          hydrate(sessionID)
+        }
+
         const keyLine = keyBudgetLine(state.wallet)
         const globalLine = globalBudgetLine(state.wallet)
         const fg = context.theme.text.base
