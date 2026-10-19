@@ -1,5 +1,11 @@
 # opencode-openrouter-budget
 
+## 0.2.0
+
+### Minor Changes
+
+- [`de4bfe8`](https://github.com/valeriobelli/opencode-openrouter-budget/commit/de4bfe8421dfdbb35147cafded157e51e8d0873c) Thanks [@valeriobelli](https://github.com/valeriobelli)! - Define dependencies as expected to allow OpenCode to download them
+
 ## 0.1.2
 
 ### Patch Changes
