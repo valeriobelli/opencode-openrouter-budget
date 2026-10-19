@@ -1,12 +1,4 @@
-/**
- * Bun ignores tsconfig.json for files inside node_modules (which is where an
- * npm-installed plugin lives), so it would fall back to the react JSX runtime
- * and fail with "Cannot find package 'react'". The pragma is resolved per file
- * and works from node_modules; OpenCode's TUI provides @opentui/solid.
- *
- * @jsxImportSource @opentui/solid
- */
-
+// @jsxImportSource @opentui/solid
 import { Plugin, usePlugin } from '@opencode/plugin/tui'
 import { createSignal } from 'solid-js'
 import { CostContract, type SummaryResult, type UpdatedEvent, type WalletSnapshot } from './rpc.js'
