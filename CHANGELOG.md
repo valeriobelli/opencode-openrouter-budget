@@ -1,5 +1,13 @@
 # opencode-openrouter-budget
 
+## 0.1.2
+
+### Patch Changes
+
+- [`c6177cd`](https://github.com/valeriobelli/opencode-openrouter-budget/commit/c6177cd304fa1c9a5e4125e7007436dedfc8f3d6) Thanks [@valeriobelli](https://github.com/valeriobelli)! - Remove some slop from the code
+
+- [`6149929`](https://github.com/valeriobelli/opencode-openrouter-budget/commit/6149929b7e6ae8e4fa842fffcbcc73a99cd94853) Thanks [@valeriobelli](https://github.com/valeriobelli)! - fix: use single-line @jsxImportSource pragma for bun+node_modules—block form triggers newline in import path, breaking the load. This matches all working OpenCode TUI plugins and is proven in Bun upstream tests.
+
 ## 0.1.1
 
 ### Patch Changes
