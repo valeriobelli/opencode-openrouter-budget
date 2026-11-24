@@ -9,6 +9,7 @@ import {
 import { parseResponseText } from './parse.ts'
 import {
   CostContract,
+  SessionLedgerSchema,
   type CostEntry,
   type SessionLedger,
   type UpdatedEvent,
@@ -85,16 +86,50 @@ async function loadLedger(storage: Storage, sessionID: string): Promise<SessionL
     warn(`storage read failed: ${String(error)}`)
   }
 
-  const ledger = (loaded as SessionLedger | undefined) ?? {
-    sessionID,
-    startedAt: Date.now(),
-    totalUSD: 0,
-    entries: [],
-  }
+  const ledger = decodeLedger(loaded, sessionID)
 
   ledgers.set(sessionID, ledger)
 
   return ledger
+}
+
+function decodeLedger(loaded: unknown, sessionID: string): SessionLedger {
+  const decoded = Schema.decodeUnknownResult(SessionLedgerSchema)(loaded)
+
+  if (Result.isFailure(decoded)) {
+    return {
+      sessionID,
+      startedAt: Date.now(),
+      totalUSD: 0,
+      byokUSD: 0,
+      unknownBYOK: 0,
+      entries: [],
+    }
+  }
+
+  return withByokTotals(decoded.success)
+}
+
+function withByokTotals(ledger: Schema.Schema.Type<typeof SessionLedgerSchema>): SessionLedger {
+  const entries = ledger.entries.map((entry) => ({ ...entry }))
+
+  if (ledger.byokUSD === undefined || ledger.unknownBYOK === undefined) {
+    // shortcut: a ledger saved before BYOK tracking counts its retained entries (max 1000) as
+    // unknown, so very long old sessions undercount; upgrade if exact counts matter.
+    return {
+      ...ledger,
+      byokUSD: 0,
+      unknownBYOK: entries.length,
+      entries,
+    }
+  }
+
+  return {
+    ...ledger,
+    byokUSD: ledger.byokUSD,
+    unknownBYOK: ledger.unknownBYOK,
+    entries,
+  }
 }
 
 async function saveLedger(storage: Storage, ledger: SessionLedger): Promise<void> {
@@ -169,6 +204,24 @@ interface KeyInfoData {
   limit?: number | null
   limit_remaining?: number | null
   limit_reset?: string | null
+  include_byok_in_limit?: boolean
+  effective_budget?: {
+    scope?: string
+    include_byok?: boolean
+    limit_usd?: number
+    remaining_usd?: number
+  } | null
+}
+
+function effectiveBudgetOf(budget: KeyInfoData['effective_budget']): Wallet['effectiveBudget'] {
+  return (
+    budget && {
+      scope: budget.scope,
+      includeByok: budget.include_byok,
+      limitUSD: budget.limit_usd,
+      remainingUSD: budget.remaining_usd,
+    }
+  )
 }
 
 function assignKeyFields(wallet: Wallet, data: KeyInfoData): void {
@@ -177,6 +230,8 @@ function assignKeyFields(wallet: Wallet, data: KeyInfoData): void {
   wallet.keyLimit = data.limit ?? null
   wallet.keyLimitRemaining = data.limit_remaining ?? null
   wallet.keyLimitReset = data.limit_reset ?? null
+  wallet.includeByokInLimit = data.include_byok_in_limit
+  wallet.effectiveBudget = effectiveBudgetOf(data.effective_budget)
 }
 
 function keyInfoDataOf(value: unknown): KeyInfoData | null {
@@ -300,7 +355,14 @@ async function pollWallet(deps: ServerDeps, force = false): Promise<Wallet | nul
 async function summaryFor(deps: ServerDeps, sessionID: string) {
   if (!sessionID) {
     return {
-      session: { sessionID: '', startedAt: 0, totalUSD: 0, requests: 0 },
+      session: {
+        sessionID: '',
+        startedAt: 0,
+        totalUSD: 0,
+        byokUSD: 0,
+        unknownBYOK: 0,
+        requests: 0,
+      },
       entries: [],
       wallet: walletCache,
     }
@@ -313,6 +375,8 @@ async function summaryFor(deps: ServerDeps, sessionID: string) {
       sessionID,
       startedAt: ledger.startedAt,
       totalUSD: ledger.totalUSD,
+      byokUSD: ledger.byokUSD,
+      unknownBYOK: ledger.unknownBYOK,
       requests: ledger.entries.length,
     },
     entries: ledger.entries.slice(-200),
@@ -330,6 +394,12 @@ function recordEntry(ledger: SessionLedger, entry: CostEntry): void {
   if (typeof entry.cost === 'number') {
     ledger.totalUSD = Math.round((ledger.totalUSD + entry.cost) * 1e6) / 1e6
   }
+
+  if (typeof entry.byokCost === 'number') {
+    ledger.byokUSD = Math.round((ledger.byokUSD + entry.byokCost) * 1e6) / 1e6
+  } else {
+    ledger.unknownBYOK += 1
+  }
 }
 
 function entryOf(
@@ -341,6 +411,7 @@ function entryOf(
     kind,
     model: captured.model,
     cost: captured.cost,
+    byokCost: captured.byokCost,
     promptTokens: captured.promptTokens,
     completionTokens: captured.completionTokens,
     generationID: captured.generationID,
@@ -389,8 +460,11 @@ async function consume(
     await deps.events.spendUpdated({
       sessionID,
       totalUSD: ledger.totalUSD,
+      byokUSD: ledger.byokUSD,
+      unknownBYOK: ledger.unknownBYOK,
       lastModel: entry.model,
       lastCost: entry.cost,
+      lastByokCost: captured.byokCost,
       requests: ledger.entries.length,
     })
   } catch (error) {

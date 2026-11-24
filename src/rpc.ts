@@ -22,6 +22,17 @@ export const WalletSchema = Schema.Struct({
   keyLimit: Schema.optional(Schema.NullOr(Schema.Number)),
   keyLimitRemaining: Schema.optional(Schema.NullOr(Schema.Number)),
   keyLimitReset: Schema.optional(Schema.NullOr(Schema.String)),
+  includeByokInLimit: Schema.optional(Schema.Boolean),
+  effectiveBudget: Schema.optional(
+    Schema.NullOr(
+      Schema.Struct({
+        scope: Schema.optional(Schema.String),
+        includeByok: Schema.optional(Schema.Boolean),
+        limitUSD: Schema.optional(Schema.Number),
+        remainingUSD: Schema.optional(Schema.Number),
+      }),
+    ),
+  ),
   creditsTotal: Schema.optional(Schema.Number),
   creditsUsage: Schema.optional(Schema.Number),
   creditsRemaining: Schema.optional(Schema.Number),
@@ -34,6 +45,8 @@ export const CostEntrySchema = Schema.Struct({
   kind: Schema.String,
   model: Schema.NullOr(Schema.String),
   cost: Schema.NullOr(Schema.Number),
+  // Absent on entries stored before BYOK tracking; null means unknown.
+  byokCost: Schema.optional(Schema.NullOr(Schema.Number)),
   promptTokens: Schema.NullOr(Schema.Number),
   completionTokens: Schema.NullOr(Schema.Number),
   generationID: Schema.NullOr(Schema.String),
@@ -43,6 +56,9 @@ export const SessionLedgerSchema = Schema.Struct({
   sessionID: Schema.String,
   startedAt: Schema.Number,
   totalUSD: Schema.Number,
+  // Stored ledgers from before BYOK tracking lack these; loadLedger backfills them.
+  byokUSD: Schema.optional(Schema.Number),
+  unknownBYOK: Schema.optional(Schema.Number),
   entries: Schema.Array(CostEntrySchema),
 })
 
@@ -55,6 +71,8 @@ const SummaryOutput = Schema.Struct({
     sessionID: Schema.String,
     startedAt: Schema.Number,
     totalUSD: Schema.Number,
+    byokUSD: Schema.Number,
+    unknownBYOK: Schema.Number,
     requests: Schema.Number,
   }),
   entries: Schema.Array(CostEntrySchema),
@@ -70,8 +88,11 @@ const EmptyInput = Schema.Struct({})
 const UpdatedEvent = Schema.Struct({
   sessionID: Schema.String,
   totalUSD: Schema.Number,
+  byokUSD: Schema.Number,
+  unknownBYOK: Schema.Number,
   lastModel: Schema.NullOr(Schema.String),
   lastCost: Schema.NullOr(Schema.Number),
+  lastByokCost: Schema.NullOr(Schema.Number),
   requests: Schema.Number,
 })
 
@@ -109,6 +130,9 @@ export const CostContract = Rpc.define({
 export type Wallet = DeepMutable<typeof WalletSchema.Type>
 export type WalletSnapshot = typeof WalletSchema.Type
 export type CostEntry = DeepMutable<typeof CostEntrySchema.Type>
-export type SessionLedger = DeepMutable<typeof SessionLedgerSchema.Type>
+export type SessionLedger = DeepMutable<typeof SessionLedgerSchema.Type> & {
+  byokUSD: number
+  unknownBYOK: number
+}
 export type SummaryResult = typeof SummaryOutput.Type
 export type UpdatedEvent = typeof UpdatedEvent.Type

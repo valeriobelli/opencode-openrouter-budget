@@ -13,6 +13,14 @@ const keyInfo = decodeKeyInfo({
     limit_remaining: 70.559155531,
     include_byok_in_limit: false,
     budgets: [{ scope: 'workspace_default_member', limit_usd: 5000, spend_usd: 448.789 }],
+    effective_budget: {
+      scope: 'workspace',
+      limit_usd: 500,
+      spend_usd: 120,
+      remaining_usd: 380,
+      reset_interval: 'monthly',
+      include_byok: false,
+    },
     usage: 332.585486083,
     usage_daily: 12.1,
     usage_weekly: 29.44,
@@ -27,6 +35,10 @@ assert.equal(keyInfo.data.label, 'sk-or-v1-813...482')
 assert.equal(keyInfo.data.limit, 100)
 assert.equal(keyInfo.data.limit_remaining, 70.559155531)
 assert.equal(keyInfo.data.limit_reset, 'weekly')
+assert.equal(keyInfo.data.include_byok_in_limit, false)
+assert.equal(keyInfo.data.effective_budget?.scope, 'workspace')
+assert.equal(keyInfo.data.effective_budget?.include_byok, false)
+assert.equal(keyInfo.data.effective_budget?.remaining_usd, 380)
 assert.equal(keyInfo.data.usage, 332.585486083)
 assert.equal('is_management_key' in keyInfo.data, false, 'unmodeled fields must be dropped')
 

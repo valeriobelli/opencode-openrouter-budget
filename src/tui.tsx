@@ -9,9 +9,19 @@ type SummaryEntry = SummaryResult['entries'][number]
 
 interface SessionSummary {
   totalUSD: number
+  byokUSD: number
+  unknownBYOK: number
   lastModel: string | null
   lastCost: number | null
+  lastByokCost: number | null
   requests: number
+}
+
+// totalUSD is what OpenRouter charged; byokUSD is what the provider charged on the user's own key.
+interface CostSplit {
+  totalUSD: number
+  byokUSD: number
+  unknownBYOK: number
 }
 
 interface StoreState {
@@ -31,6 +41,35 @@ interface BudgetRpc {
 
 const money = (value: number) => `$${value.toFixed(4)}`
 const count = (value: number) => value.toLocaleString('en-US')
+
+const yesNo = (value: boolean | undefined) => {
+  if (value === undefined) {
+    return 'unknown'
+  }
+
+  return value ? 'yes' : 'no'
+}
+
+const sessionTotalLine = (split: CostSplit, requests: number) =>
+  `Session total ${money(split.totalUSD + split.byokUSD)} · ${requests} req`
+
+function splitLine(split: CostSplit): string {
+  const unknown = split.unknownBYOK > 0 ? ` (${split.unknownBYOK} unknown)` : ''
+
+  return `OpenRouter ${money(split.totalUSD)} + BYOK ${money(split.byokUSD)}${unknown}`
+}
+
+function lastLine(model: string, cost: number | null, byokCost: number | null): string {
+  if (typeof cost !== 'number') {
+    return `Last: ${model}`
+  }
+
+  if (typeof byokCost !== 'number') {
+    return `Last: ${model} · ${money(cost)} + BYOK unknown`
+  }
+
+  return `Last: ${model} · total ${money(cost + byokCost)}`
+}
 
 function keyRemaining(wallet: WalletSnapshot): number | null {
   if (typeof wallet.keyLimitRemaining === 'number') {
@@ -94,11 +133,38 @@ function detailLine(line: string | null): string[] {
   return line ? [line] : []
 }
 
+// The key's own credit limit and the budget that blocks requests first have separate BYOK settings.
+function keyLimitDetail(wallet: WalletSnapshot): string | null {
+  const remaining = keyRemaining(wallet)
+
+  if (remaining === null) {
+    return null
+  }
+
+  return `Key limit: $${remaining.toFixed(2)} left · BYOK counted: ${yesNo(wallet.includeByokInLimit)}`
+}
+
+function effectiveBudgetDetail(wallet: WalletSnapshot): string | null {
+  const budget = wallet.effectiveBudget
+
+  if (!budget) {
+    return null
+  }
+
+  const scope = budget.scope ? ` (${budget.scope})` : ''
+  const left =
+    typeof budget.remainingUSD === 'number' ? `$${budget.remainingUSD.toFixed(2)} left · ` : ''
+
+  return `Effective budget${scope}: ${left}BYOK counted: ${yesNo(budget.includeByok)}`
+}
+
 function walletDetailLines(wallet: WalletSnapshot | null): string[] {
   return !wallet
     ? ['Wallet: no data yet']
     : [
         ...detailLine(keyUsageDetail(wallet)),
+        ...detailLine(keyLimitDetail(wallet)),
+        ...detailLine(effectiveBudgetDetail(wallet)),
         ...detailLine(creditsDetail(wallet)),
         ...(wallet.creditsUnavailable
           ? ['Credits: not readable with this key (management key required)']
@@ -109,9 +175,17 @@ function walletDetailLines(wallet: WalletSnapshot | null): string[] {
 }
 
 function lastEntryLine(entry: SummaryEntry): string {
-  const cost = typeof entry.cost === 'number' ? ` · ${money(entry.cost)}` : ''
+  return lastLine(entry.model ?? 'unknown', entry.cost, entry.byokCost ?? null)
+}
 
-  return `Last: ${entry.model ?? 'unknown'}${cost}`
+function sessionCostLines(session: SummaryResult['session']): string[] {
+  const unknown = session.unknownBYOK > 0 ? ` (${session.unknownBYOK} requests unknown)` : ''
+
+  return [
+    `Session total (reported) ${money(session.totalUSD + session.byokUSD)} · ${session.requests} req`,
+    `OpenRouter cost ${money(session.totalUSD)}`,
+    `BYOK upstream cost (OpenRouter-reported) ${money(session.byokUSD)}${unknown}`,
+  ]
 }
 
 function summaryLines(summary: SummaryResult): string[] {
@@ -122,7 +196,7 @@ function summaryLines(summary: SummaryResult): string[] {
 
   return [
     'OpenRouter budget',
-    `Session ${money(summary.session.totalUSD)} · ${summary.session.requests} req`,
+    ...sessionCostLines(summary.session),
     ...(newest ? [lastEntryLine(newest)] : []),
     ...(keyLine ? [keyLine] : []),
     ...(globalLine ? [globalLine] : []),
@@ -133,8 +207,11 @@ function applySpendUpdate(mutate: Mutate, data: UpdatedEvent): void {
   mutate((draft) => {
     draft.sessions[data.sessionID] = {
       totalUSD: data.totalUSD,
+      byokUSD: data.byokUSD,
+      unknownBYOK: data.unknownBYOK,
       lastModel: data.lastModel,
       lastCost: data.lastCost,
+      lastByokCost: data.lastByokCost,
       requests: data.requests,
     }
   })
@@ -169,25 +246,25 @@ function createWalletSubscriber(rpc: BudgetRpc, mutate: Mutate): () => Promise<v
   }
 }
 
+function lastFields(last: SummaryEntry | undefined) {
+  if (!last) {
+    return { lastModel: null, lastCost: null, lastByokCost: null }
+  }
+
+  return { lastModel: last.model, lastCost: last.cost, lastByokCost: last.byokCost ?? null }
+}
+
 // After a TUI restart the memory store is empty even though the server has a
 // ledger. Pull it once per session so the sidebar is accurate immediately.
 function summaryToSession(summary: SummaryResult): SessionSummary {
-  const last = summary.entries[summary.entries.length - 1]
-
-  if (!last) {
-    return {
-      totalUSD: summary.session.totalUSD,
-      lastModel: null,
-      lastCost: null,
-      requests: summary.session.requests,
-    }
-  }
+  const { session } = summary
 
   return {
-    totalUSD: summary.session.totalUSD,
-    lastModel: last.model,
-    lastCost: last.cost,
-    requests: summary.session.requests,
+    totalUSD: session.totalUSD,
+    byokUSD: session.byokUSD,
+    unknownBYOK: session.unknownBYOK,
+    ...lastFields(summary.entries.at(-1)),
+    requests: session.requests,
   }
 }
 
@@ -283,9 +360,7 @@ function sessionLine(session: SessionSummary): string | null {
     return null
   }
 
-  const cost = typeof session.lastCost === 'number' ? ` · ${money(session.lastCost)}` : ''
-
-  return `Last: ${session.lastModel}${cost}`
+  return lastLine(session.lastModel, session.lastCost, session.lastByokCost)
 }
 
 function SidebarBlock(props: {
@@ -301,7 +376,7 @@ function SidebarBlock(props: {
     <box>
       <text fg={fg}>OpenRouter</text>
       <SessionLine session={props.session} fg={fg} />
-      {props.session ? <LastLine session={props.session} fg={fg} /> : null}
+      {props.session ? <SessionDetails session={props.session} fg={fg} /> : null}
       {keyLine ? <text fg={fg}>{keyLine}</text> : null}
       {globalLine ? <text fg={fg}>{globalLine}</text> : null}
     </box>
@@ -313,10 +388,15 @@ function SessionLine(props: { session: SessionSummary | undefined; fg: string })
     return <text fg={props.fg}>waiting for first request…</text>
   }
 
+  return <text fg={props.fg}>{sessionTotalLine(props.session, props.session.requests)}</text>
+}
+
+function SessionDetails(props: { session: SessionSummary; fg: string }) {
   return (
-    <text
-      fg={props.fg}
-    >{`Session $${props.session.totalUSD.toFixed(4)} · ${props.session.requests} req`}</text>
+    <>
+      <text fg={props.fg}>{splitLine(props.session)}</text>
+      <LastLine session={props.session} fg={props.fg} />
+    </>
   )
 }
 
@@ -340,8 +420,9 @@ function rowFirst(entry: SummaryEntry): string {
   const time = new Date(entry.ts).toLocaleTimeString('en-US', { hour12: false })
   const modelKind = `${entry.model ?? 'unknown'} [${entry.kind}]`
   const cost = typeof entry.cost === 'number' ? money(entry.cost) : '—'
+  const byok = typeof entry.byokCost === 'number' ? money(entry.byokCost) : 'unknown'
 
-  return `${time}  ${modelKind.padEnd(46)}${cost}`
+  return `${time}  ${modelKind.padEnd(46)}OpenRouter ${cost} · BYOK ${byok}`
 }
 
 function rowSecond(entry: SummaryEntry): string {
