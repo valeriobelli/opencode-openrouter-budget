@@ -9,6 +9,7 @@ import {
 import { parseResponseText } from './parse.ts'
 import {
   CostContract,
+  SessionLedgerSchema,
   type CostEntry,
   type SessionLedger,
   type UpdatedEvent,
@@ -85,31 +86,50 @@ async function loadLedger(storage: Storage, sessionID: string): Promise<SessionL
     warn(`storage read failed: ${String(error)}`)
   }
 
-  const ledger = withByokTotals(
-    (loaded as SessionLedger | undefined) ?? {
-      sessionID,
-      startedAt: Date.now(),
-      totalUSD: 0,
-      byokUSD: 0,
-      unknownBYOK: 0,
-      entries: [],
-    },
-  )
+  const ledger = decodeLedger(loaded, sessionID)
 
   ledgers.set(sessionID, ledger)
 
   return ledger
 }
 
-function withByokTotals(ledger: SessionLedger): SessionLedger {
-  if (ledger.byokUSD === undefined) {
-    // shortcut: a ledger saved before BYOK tracking counts its retained entries (max 1000) as
-    // unknown, so very long old sessions undercount; upgrade if exact counts matter.
-    ledger.byokUSD = 0
-    ledger.unknownBYOK = ledger.entries.length
+function decodeLedger(loaded: unknown, sessionID: string): SessionLedger {
+  const decoded = Schema.decodeUnknownResult(SessionLedgerSchema)(loaded)
+
+  if (Result.isFailure(decoded)) {
+    return {
+      sessionID,
+      startedAt: Date.now(),
+      totalUSD: 0,
+      byokUSD: 0,
+      unknownBYOK: 0,
+      entries: [],
+    }
   }
 
-  return ledger
+  return withByokTotals(decoded.success)
+}
+
+function withByokTotals(ledger: Schema.Schema.Type<typeof SessionLedgerSchema>): SessionLedger {
+  const entries = ledger.entries.map((entry) => ({ ...entry }))
+
+  if (ledger.byokUSD === undefined || ledger.unknownBYOK === undefined) {
+    // shortcut: a ledger saved before BYOK tracking counts its retained entries (max 1000) as
+    // unknown, so very long old sessions undercount; upgrade if exact counts matter.
+    return {
+      ...ledger,
+      byokUSD: 0,
+      unknownBYOK: entries.length,
+      entries,
+    }
+  }
+
+  return {
+    ...ledger,
+    byokUSD: ledger.byokUSD,
+    unknownBYOK: ledger.unknownBYOK,
+    entries,
+  }
 }
 
 async function saveLedger(storage: Storage, ledger: SessionLedger): Promise<void> {

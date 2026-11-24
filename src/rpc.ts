@@ -57,8 +57,8 @@ export const SessionLedgerSchema = Schema.Struct({
   startedAt: Schema.Number,
   totalUSD: Schema.Number,
   // Stored ledgers from before BYOK tracking lack these; loadLedger backfills them.
-  byokUSD: Schema.Number,
-  unknownBYOK: Schema.Number,
+  byokUSD: Schema.optional(Schema.Number),
+  unknownBYOK: Schema.optional(Schema.Number),
   entries: Schema.Array(CostEntrySchema),
 })
 
@@ -130,6 +130,9 @@ export const CostContract = Rpc.define({
 export type Wallet = DeepMutable<typeof WalletSchema.Type>
 export type WalletSnapshot = typeof WalletSchema.Type
 export type CostEntry = DeepMutable<typeof CostEntrySchema.Type>
-export type SessionLedger = DeepMutable<typeof SessionLedgerSchema.Type>
+export type SessionLedger = DeepMutable<typeof SessionLedgerSchema.Type> & {
+  byokUSD: number
+  unknownBYOK: number
+}
 export type SummaryResult = typeof SummaryOutput.Type
 export type UpdatedEvent = typeof UpdatedEvent.Type

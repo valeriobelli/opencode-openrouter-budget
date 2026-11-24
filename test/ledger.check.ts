@@ -6,7 +6,8 @@ import type { SummaryResult, UpdatedEvent } from '../src/rpc.ts'
 delete process.env.OPENROUTER_API_KEY
 globalThis.fetch = () => Promise.reject(new Error('no network in tests'))
 
-type Method = (input?: unknown) => Promise<unknown>
+type SetupArg = Parameters<typeof plugin.setup>[0]
+type SummaryMethod = (input: { sessionID: string }) => Promise<SummaryResult>
 type ResponseEvent = { sessionID: string; kind: string; response: Response }
 
 const sessionID = 'ses_ledger'
@@ -31,14 +32,14 @@ const legacy = {
 
 const store = new Map<string, unknown>([[`spend/${sessionID}`, legacy]])
 const waiting: Array<(event: UpdatedEvent) => void> = []
-let methods: Record<string, Method> = {}
+let readSummary: SummaryMethod | undefined
 
 let onResponse: (event: ResponseEvent) => void = () => {}
 
-const cleanup = await plugin.setup({
+const fakeCtx = {
   rpc: {
-    register: async (_contract: unknown, implementation: Record<string, Method>) => {
-      methods = implementation
+    register: async (_contract: unknown, implementation: { summary: SummaryMethod }) => {
+      readSummary = implementation.summary
 
       return {
         events: {
@@ -57,15 +58,22 @@ const cleanup = await plugin.setup({
       store.set(key, value)
     },
   },
-  integration: { connection: { active: async () => null, resolve: async () => null } },
+  integration: { connection: { active: async () => undefined, resolve: async () => undefined } },
   session: {
     hook: async (_name: string, handler: (event: ResponseEvent) => void) => {
       onResponse = handler
     },
   },
-} as never)
+}
 
-const summary = async () => (await methods.summary?.({ sessionID })) as SummaryResult
+// Partial test stub for OpenCode's Context; setup only reads the four fields above.
+const cleanup = await plugin.setup(fakeCtx as unknown as SetupArg)
+
+const summary = () => {
+  assert.ok(readSummary, 'expected summary RPC to be registered')
+
+  return readSummary({ sessionID })
+}
 
 async function capture(usage: Record<string, unknown>): Promise<UpdatedEvent> {
   const updated = new Promise<UpdatedEvent>((resolve) => waiting.push(resolve))
