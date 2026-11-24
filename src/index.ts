@@ -264,7 +264,8 @@ async function pollWallet(deps: ServerDeps, force = false): Promise<Wallet | nul
   const now = Date.now()
   const fresh = freshCache(force, now)
 
-  if (!fresh) {
+  // null means missing, stale, or a forced refresh, so only return a cached wallet.
+  if (fresh) {
     return fresh
   }
 
