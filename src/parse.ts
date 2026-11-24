@@ -7,6 +7,8 @@ export interface CapturedUsage {
   generationID: string | null
   model: string | null
   cost: number | null
+  /** What the upstream provider charged on the user's own key; null when unknown. */
+  byokCost: number | null
   promptTokens: number | null
   completionTokens: number | null
   cachedTokens: number | null
@@ -44,6 +46,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+// OpenRouter reports upstream_inference_cost on non-BYOK requests too, where it is already
+// inside `cost`; only an explicit is_byok decides whether it is a separate charge.
+function byokCostOf(usageRecord: Record<string, unknown>): number | null {
+  if (usageRecord.is_byok === false) {
+    return 0
+  }
+
+  if (usageRecord.is_byok !== true) {
+    return null
+  }
+
+  const details = isRecord(usageRecord.cost_details) ? usageRecord.cost_details : {}
+
+  return numberOr(details.upstream_inference_cost)
+}
+
 function extract(chunk: unknown): CapturedUsage | null {
   if (!isRecord(chunk)) {
     return null
@@ -61,6 +79,7 @@ function extract(chunk: unknown): CapturedUsage | null {
     generationID: stringOr(chunk.id),
     model: stringOr(chunk.model),
     cost: numberOr(usage.cost),
+    byokCost: byokCostOf(usage),
     promptTokens: tokens.prompt,
     completionTokens: tokens.completion,
     cachedTokens: tokens.cached,

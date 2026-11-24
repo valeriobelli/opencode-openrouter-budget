@@ -48,4 +48,32 @@ assert.equal(parseSSE('data: {oops'), null)
 // Empty input
 assert.equal(parseResponseText('', 'text/event-stream'), null)
 
+// BYOK: the upstream cost is a separate charge, reported next to OpenRouter's cost
+const byok = parseSSE(
+  'data: {"id":"gen-04","model":"openai/gpt-6.1","usage":{"prompt_tokens":33,"completion_tokens":5,"cost":0,"is_byok":true,"cost_details":{"upstream_inference_cost":0.000232}}}',
+)
+
+assert.ok(byok)
+assert.equal(byok.cost, 0)
+assert.equal(byok.byokCost, 0.000232)
+
+// Non-BYOK: the upstream figure is already inside cost, so it is not an extra charge
+const nonByok = parseSSE(
+  'data: {"id":"gen-05","model":"x","usage":{"prompt_tokens":1,"completion_tokens":1,"cost":0.01,"is_byok":false,"cost_details":{"upstream_inference_cost":0.009}}}',
+)
+
+assert.ok(nonByok)
+assert.equal(nonByok.byokCost, 0)
+
+// BYOK without an upstream figure is unknown, not zero
+const byokNoCost = parseSSE(
+  'data: {"id":"gen-06","model":"x","usage":{"prompt_tokens":1,"completion_tokens":1,"cost":0,"is_byok":true}}',
+)
+
+assert.ok(byokNoCost)
+assert.equal(byokNoCost.byokCost, null)
+
+// Usage without is_byok (fixture above) is unknown, not zero
+assert.equal(captured.byokCost, null)
+
 console.log('parse tests passed')

@@ -13,6 +13,19 @@ const KeyInfoResponse = Schema.Struct({
     limit: Schema.optional(Schema.NullOr(Schema.Number)),
     limit_remaining: Schema.optional(Schema.NullOr(Schema.Number)),
     limit_reset: Schema.optional(Schema.NullOr(Schema.String)),
+    // Does BYOK spend count toward this key's own credit limit?
+    include_byok_in_limit: Schema.optional(Schema.Boolean),
+    // The budget that blocks requests first; has its own BYOK setting.
+    effective_budget: Schema.optional(
+      Schema.NullOr(
+        Schema.Struct({
+          scope: Schema.optional(Schema.String),
+          include_byok: Schema.optional(Schema.Boolean),
+          limit_usd: Schema.optional(Schema.Number),
+          remaining_usd: Schema.optional(Schema.Number),
+        }),
+      ),
+    ),
   }),
 })
 
