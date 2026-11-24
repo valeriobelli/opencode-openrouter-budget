@@ -1,5 +1,15 @@
 # opencode-openrouter-budget
 
+## 0.4.0
+
+### Minor Changes
+
+- [#9](https://github.com/valeriobelli/opencode-openrouter-budget/pull/9) [`8ea9ea6`](https://github.com/valeriobelli/opencode-openrouter-budget/commit/8ea9ea6ac4d707cdd33f372fc450b81526f6188a) Thanks [@valeriobelli](https://github.com/valeriobelli)! - Report BYOK spend separately from OpenRouter's own charge. BYOK requests return `usage.cost: 0` with the provider's charge in `cost_details.upstream_inference_cost`, so sessions using your own provider keys showed `$0.00`. The sidebar now shows the session total and its OpenRouter + BYOK split, and `/openrouter-budget` lists both per request and shows whether BYOK counts toward the key limit and the effective budget. Requests without BYOK data are shown as unknown rather than zero.
+
+### Patch Changes
+
+- [#7](https://github.com/valeriobelli/opencode-openrouter-budget/pull/7) [`4d6b146`](https://github.com/valeriobelli/opencode-openrouter-budget/commit/4d6b1465589b75589b0600da933971393ce98db6) Thanks [@suxatcode](https://github.com/suxatcode)! - Fetch the OpenRouter wallet when the cache is empty. The poll returned immediately whenever a refresh was required, so key budget and account credits never loaded.
+
 ## 0.3.0
 
 ### Minor Changes
