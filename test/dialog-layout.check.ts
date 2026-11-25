@@ -246,13 +246,13 @@ assert.equal(empty.tableHeader, null)
 assert.deepEqual(empty.requests.map(text), ['No OpenRouter requests captured in this session yet.'])
 assert.ok(!empty.footer.map(text).join(' ').includes('Fetched'))
 
-// The heading says when the ledger kept fewer requests than the session made.
-const kept = layoutDialog(summaryOf({ session: { ...summaryOf().session, requests: 1500 } }), {
+// The heading says when the server sent only the newest requests of the session.
+const partial = layoutDialog(summaryOf({ session: { ...summaryOf().session, requests: 450 } }), {
   width: 54,
   now,
 })
 
-assert.equal(text(kept.requestsHeading), 'Requests · 3 of 1,500 kept · newest first')
+assert.equal(text(partial.requestsHeading), 'Requests · 3 of 450 shown · newest first')
 
 // A very narrow dialog still keeps every line inside its width.
 const tiny = layoutDialog(summaryOf(), { width: 30, now })

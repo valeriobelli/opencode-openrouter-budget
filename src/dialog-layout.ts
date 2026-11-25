@@ -4,7 +4,7 @@ import type { SummaryResult, WalletSnapshot } from './rpc.ts'
 // Pure layout of the /openrouter-budget dialog: every line comes out padded and
 // cut to the content width, so the TUI only draws cells and never wraps them.
 
-export type Tone = 'title' | 'heading' | 'base' | 'muted' | 'faint' | 'warning'
+export type Tone = 'heading' | 'base' | 'muted' | 'faint' | 'warning'
 
 export interface Cell {
   readonly text: string
@@ -431,8 +431,7 @@ function tokenColumns(entries: readonly Entry[], compact: boolean): Column[] {
   ]
 }
 
-function table(entries: readonly Entry[], width: number): Table {
-  const compact = width < FULL_TABLE_WIDTH
+function table(entries: readonly Entry[], width: number, compact: boolean): Table {
   const time = timeColumn(entries, compact)
   const after = [...costColumns(entries, compact), ...tokenColumns(entries, compact)]
   const roles = roleColumn(entries)
@@ -511,8 +510,9 @@ function requestsHeading(summary: SummaryResult, width: number): Line {
     return fit([cell('Requests', 'heading')], width)
   }
 
+  // The server sends only the newest requests of a longer session.
   const total = summary.session.requests
-  const shown = kept < total ? `${count(kept)} of ${count(total)} kept` : count(kept)
+  const shown = kept < total ? `${count(kept)} of ${count(total)} shown` : count(kept)
 
   return fit([cell(`Requests · ${shown} · newest first`, 'heading')], width)
 }
@@ -556,7 +556,7 @@ export function layoutDialog(
     }
   }
 
-  const spec = table(summary.entries, tableWidth)
+  const spec = table(summary.entries, tableWidth, compact)
   const header = tableLine(spec, (col) => cell(col.title, 'muted'), cell('Model', 'muted'))
 
   return {

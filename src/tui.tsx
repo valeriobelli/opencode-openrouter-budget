@@ -232,8 +232,6 @@ function createDialogOpener(deps: { rpc: BudgetRpc; context: TuiContext }): () =
     const [summary, setSummary] = createSignal<SummaryResult>(initial)
     const refresh = createRefresher(deps, setSummary)
 
-    deps.context.ui.dialog.set({ size: 'xlarge', centered: true })
-
     deps.context.ui.dialog.show(
       () => (
         <CostDialog
@@ -244,6 +242,8 @@ function createDialogOpener(deps: { rpc: BudgetRpc; context: TuiContext }): () =
       ),
       () => {},
     )
+    // After show(): showing a dialog resets it to medium and not centred.
+    deps.context.ui.dialog.set({ size: 'xlarge', centered: true })
   }
 }
 
@@ -311,7 +311,6 @@ interface Scroller {
 
 function tonePalette(theme: TuiContext['theme']) {
   return {
-    title: theme.text.base,
     heading: theme.text.muted,
     base: theme.text.base,
     muted: theme.text.muted,
@@ -323,11 +322,9 @@ function tonePalette(theme: TuiContext['theme']) {
 type Palette = ReturnType<typeof tonePalette>
 
 function CellText(props: { cell: Cell; palette: Palette }) {
-  const bold = props.cell.tone === 'title' || props.cell.tone === 'heading'
-
   return (
     <text fg={props.palette[props.cell.tone]} wrapMode="none">
-      {bold ? <strong>{props.cell.text}</strong> : props.cell.text}
+      {props.cell.tone === 'heading' ? <strong>{props.cell.text}</strong> : props.cell.text}
     </text>
   )
 }
@@ -393,7 +390,7 @@ function CostDialog(props: { summary: SummaryResult; onRefresh: () => void; onCl
       }}
     >
       <box flexDirection="row" justifyContent="space-between">
-        <text fg={palette.title} wrapMode="none">
+        <text fg={palette.base} wrapMode="none">
           <strong>OpenRouter budget</strong>
         </text>
         <text fg={palette.muted} wrapMode="none" onMouseUp={() => props.onClose()}>

@@ -57,12 +57,12 @@ Key limit (weekly)  $78.42 left · BYOK counted: no
 Account credits     $114.11 left of $200.00
 
 Requests · 155 · newest first
-Time   Model                      Role            Cost
-── Today ─────────────────────────────────────────────
-10:52  claude-haiku-5.5           compaction  $0.0890
-── Yesterday ─────────────────────────────────────────
-14:36  google/gemini-4-hydrogen               $0.0131
-14:35  google/gemini-4-hydrogen               $0.0164?
+Time   Model                     Role            Cost
+── Today ────────────────────────────────────────────
+10:52  claude-haiku-5.5          compaction  $0.0890
+── Yesterday ────────────────────────────────────────
+14:36  google/gemini-4-hydrogen              $0.0131
+14:35  google/gemini-4-hydrogen              $0.0164?
 ```
 
 - **Spend** is the session total and its OpenRouter and BYOK parts.
