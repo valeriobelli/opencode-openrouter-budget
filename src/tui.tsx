@@ -1,6 +1,9 @@
 // @jsxImportSource @opentui/solid
 import { Plugin, usePlugin } from '@opencode/plugin/tui'
-import { createSignal } from 'solid-js'
+import { useTerminalDimensions } from '@opentui/solid'
+import { For, Show, createMemo, createSignal } from 'solid-js'
+import { type Cell, type Line, keyRemaining, layoutDialog, listHeight } from './dialog-layout.ts'
+import { balance, money } from './format.ts'
 import { CostContract, type SummaryResult, type UpdatedEvent, type WalletSnapshot } from './rpc.ts'
 
 type TuiContext = ReturnType<typeof usePlugin>
@@ -39,17 +42,6 @@ interface BudgetRpc {
   refresh(input: {}): Promise<{ wallet: WalletSnapshot | null }>
 }
 
-const money = (value: number) => `$${value.toFixed(4)}`
-const count = (value: number) => value.toLocaleString('en-US')
-
-const yesNo = (value: boolean | undefined) => {
-  if (value === undefined) {
-    return 'unknown'
-  }
-
-  return value ? 'yes' : 'no'
-}
-
 const sessionTotalLine = (split: CostSplit, requests: number) =>
   `Session total ${money(split.totalUSD + split.byokUSD)} · ${requests} req`
 
@@ -71,18 +63,6 @@ function lastLine(model: string, cost: number | null, byokCost: number | null): 
   return `Last: ${model} · total ${money(cost + byokCost)}`
 }
 
-function keyRemaining(wallet: WalletSnapshot): number | null {
-  if (typeof wallet.keyLimitRemaining === 'number') {
-    return wallet.keyLimitRemaining
-  }
-
-  if (typeof wallet.keyLimit === 'number' && typeof wallet.keyUsage === 'number') {
-    return Math.max(0, wallet.keyLimit - wallet.keyUsage)
-  }
-
-  return null
-}
-
 function keyBudgetLine(wallet: WalletSnapshot | null): string {
   if (!wallet) {
     return ''
@@ -96,7 +76,7 @@ function keyBudgetLine(wallet: WalletSnapshot | null): string {
 
   const reset = wallet.keyLimitReset ? ` (${wallet.keyLimitReset})` : ''
 
-  return `$${remaining.toFixed(2)} key left${reset}`
+  return `${balance(remaining)} key left${reset}`
 }
 
 // Global account credits: shown only when the key can read them (e.g. the
@@ -106,101 +86,7 @@ function globalBudgetLine(wallet: WalletSnapshot | null): string | null {
     return null
   }
 
-  return `Global: $${wallet.creditsRemaining.toFixed(2)} left`
-}
-
-function keyUsageDetail(wallet: WalletSnapshot): string {
-  return [
-    ...(wallet.label ? [`Key: ${wallet.label}`] : []),
-    ...(typeof wallet.keyUsage === 'number'
-      ? [`lifetime usage $${wallet.keyUsage.toFixed(2)}`]
-      : []),
-  ].join(' · ')
-}
-
-function creditsDetail(wallet: WalletSnapshot): string | null {
-  if (typeof wallet.creditsRemaining !== 'number') {
-    return null
-  }
-
-  const used = (wallet.creditsUsage ?? 0).toFixed(2)
-  const total = (wallet.creditsTotal ?? 0).toFixed(2)
-
-  return `Credits: $${wallet.creditsRemaining.toFixed(2)} remaining ($${used} used of $${total})`
-}
-
-function detailLine(line: string | null): string[] {
-  return line ? [line] : []
-}
-
-// The key's own credit limit and the budget that blocks requests first have separate BYOK settings.
-function keyLimitDetail(wallet: WalletSnapshot): string | null {
-  const remaining = keyRemaining(wallet)
-
-  if (remaining === null) {
-    return null
-  }
-
-  return `Key limit: $${remaining.toFixed(2)} left · BYOK counted: ${yesNo(wallet.includeByokInLimit)}`
-}
-
-function effectiveBudgetDetail(wallet: WalletSnapshot): string | null {
-  const budget = wallet.effectiveBudget
-
-  if (!budget) {
-    return null
-  }
-
-  const scope = budget.scope ? ` (${budget.scope})` : ''
-  const left =
-    typeof budget.remainingUSD === 'number' ? `$${budget.remainingUSD.toFixed(2)} left · ` : ''
-
-  return `Effective budget${scope}: ${left}BYOK counted: ${yesNo(budget.includeByok)}`
-}
-
-function walletDetailLines(wallet: WalletSnapshot | null): string[] {
-  return !wallet
-    ? ['Wallet: no data yet']
-    : [
-        ...detailLine(keyUsageDetail(wallet)),
-        ...detailLine(keyLimitDetail(wallet)),
-        ...detailLine(effectiveBudgetDetail(wallet)),
-        ...detailLine(creditsDetail(wallet)),
-        ...(wallet.creditsUnavailable
-          ? ['Credits: not readable with this key (management key required)']
-          : []),
-        ...(wallet.reason ? [`Note: ${wallet.reason}`] : []),
-        `Fetched: ${new Date(wallet.at).toLocaleTimeString('en-US', { hour12: false })}`,
-      ]
-}
-
-function lastEntryLine(entry: SummaryEntry): string {
-  return lastLine(entry.model ?? 'unknown', entry.cost, entry.byokCost ?? null)
-}
-
-function sessionCostLines(session: SummaryResult['session']): string[] {
-  const unknown = session.unknownBYOK > 0 ? ` (${session.unknownBYOK} requests unknown)` : ''
-
-  return [
-    `Session total (reported) ${money(session.totalUSD + session.byokUSD)} · ${session.requests} req`,
-    `OpenRouter cost ${money(session.totalUSD)}`,
-    `BYOK upstream cost (OpenRouter-reported) ${money(session.byokUSD)}${unknown}`,
-  ]
-}
-
-function summaryLines(summary: SummaryResult): string[] {
-  const newest = summary.entries.at(-1)
-  const keyLine = keyBudgetLine(summary.wallet)
-
-  const globalLine = globalBudgetLine(summary.wallet)
-
-  return [
-    'OpenRouter budget',
-    ...sessionCostLines(summary.session),
-    ...(newest ? [lastEntryLine(newest)] : []),
-    ...(keyLine ? [keyLine] : []),
-    ...(globalLine ? [globalLine] : []),
-  ]
+  return `Global: ${balance(wallet.creditsRemaining)} left`
 }
 
 function applySpendUpdate(mutate: Mutate, data: UpdatedEvent): void {
@@ -346,12 +232,18 @@ function createDialogOpener(deps: { rpc: BudgetRpc; context: TuiContext }): () =
     const [summary, setSummary] = createSignal<SummaryResult>(initial)
     const refresh = createRefresher(deps, setSummary)
 
-    deps.context.ui.dialog.set({ size: 'xlarge', centered: true })
-
     deps.context.ui.dialog.show(
-      () => <CostDialog summary={summary()} onRefresh={() => void refresh()} />,
+      () => (
+        <CostDialog
+          summary={summary()}
+          onRefresh={() => void refresh()}
+          onClose={() => deps.context.ui.dialog.clear()}
+        />
+      ),
       () => {},
     )
+    // After show(): showing a dialog resets it to medium and not centred.
+    deps.context.ui.dialog.set({ size: 'xlarge', centered: true })
   }
 }
 
@@ -406,67 +298,68 @@ function LastLine(props: { session: SessionSummary; fg: string }) {
   return line ? <text fg={props.fg}>{line}</text> : null
 }
 
-function SummaryBlock(props: { summary: SummaryResult; fg: string }) {
-  return (
-    <box>
-      {summaryLines(props.summary).map((line) => (
-        <text fg={props.fg}>{line}</text>
-      ))}
-    </box>
-  )
+// OpenCode's own dialogs keep 3 columns of padding on each side.
+const DIALOG_PADDING = 3
+// OpenCode 2.4.1 `xlarge` dialog width, used only until the dialog measures itself.
+const XLARGE_WIDTH = 116
+
+// The slice of OpenTUI's ScrollBoxRenderable that the dialog drives.
+interface Scroller {
+  scrollBy(delta: number): void
+  scrollTo(position: number): void
 }
 
-function rowFirst(entry: SummaryEntry): string {
-  const time = new Date(entry.ts).toLocaleTimeString('en-US', { hour12: false })
-  const modelKind = `${entry.model ?? 'unknown'} [${entry.kind}]`
-  const cost = typeof entry.cost === 'number' ? money(entry.cost) : '—'
-  const byok = typeof entry.byokCost === 'number' ? money(entry.byokCost) : 'unknown'
-
-  return `${time}  ${modelKind.padEnd(46)}OpenRouter ${cost} · BYOK ${byok}`
-}
-
-function rowSecond(entry: SummaryEntry): string {
-  return `          in ${count(entry.promptTokens ?? 0)} → out ${count(entry.completionTokens ?? 0)}`
-}
-
-function RequestRow(props: { entry: SummaryEntry; fg: string }) {
-  return (
-    <box>
-      <text fg={props.fg}>{rowFirst(props.entry)}</text>
-      <text fg={props.fg}>{rowSecond(props.entry)}</text>
-    </box>
-  )
-}
-
-function RequestList(props: { entries: readonly SummaryEntry[]; fg: string }) {
-  if (!props.entries.length) {
-    return <text fg={props.fg}>No OpenRouter requests captured in this session yet.</text>
+function tonePalette(theme: TuiContext['theme']) {
+  return {
+    heading: theme.text.muted,
+    base: theme.text.base,
+    muted: theme.text.muted,
+    faint: theme.text.faint,
+    warning: theme.text.feedback.warning.base,
   }
+}
 
+type Palette = ReturnType<typeof tonePalette>
+
+function CellText(props: { cell: Cell; palette: Palette }) {
   return (
-    <box>
-      {props.entries.toReversed().map((entry) => (
-        <RequestRow entry={entry} fg={props.fg} />
-      ))}
+    <text fg={props.palette[props.cell.tone]} wrapMode="none">
+      {props.cell.tone === 'heading' ? <strong>{props.cell.text}</strong> : props.cell.text}
+    </text>
+  )
+}
+
+function LineView(props: { line: Line; palette: Palette }) {
+  return (
+    <box flexDirection="row" height={1}>
+      <For each={props.line}>{(cell) => <CellText cell={cell} palette={props.palette} />}</For>
     </box>
   )
 }
 
-function WalletDetails(props: { wallet: WalletSnapshot | null; fg: string }) {
-  return (
-    <box>
-      {walletDetailLines(props.wallet).map((line) => (
-        <text fg={props.fg}>{line}</text>
-      ))}
-    </box>
-  )
+function Lines(props: { lines: readonly Line[]; palette: Palette }) {
+  return <For each={props.lines}>{(line) => <LineView line={line} palette={props.palette} />}</For>
 }
 
-function CostDialog(props: { summary: SummaryResult; onRefresh: () => void }) {
+function CostDialog(props: { summary: SummaryResult; onRefresh: () => void; onClose: () => void }) {
   const context = usePlugin()
+  const terminal = useTerminalDimensions()
+  const palette = tonePalette(context.theme)
+  const [measured, setMeasured] = createSignal<number | null>(null)
+  const dialogWidth = () => measured() ?? Math.min(XLARGE_WIDTH, terminal().width - 2)
+  const layout = createMemo(() =>
+    layoutDialog(props.summary, {
+      width: dialogWidth() - DIALOG_PADDING * 2,
+      now: Date.now(),
+    }),
+  )
+  const height = () => listHeight(layout(), terminal().height)
+  let list: Scroller | undefined
 
-  // Layer lives and dies with this dialog component.
+  // Lives and dies with this dialog. OpenCode switches to its `modal` input
+  // mode while a dialog is open, and a layer without a mode only runs in `base`.
   context.keymap.layer(() => ({
+    mode: 'modal',
     commands: [
       {
         id: 'openrouter-budget.dialog.refresh',
@@ -474,23 +367,53 @@ function CostDialog(props: { summary: SummaryResult; onRefresh: () => void }) {
         bind: 'r',
         run: () => props.onRefresh(),
       },
+      { title: 'Scroll requests up', bind: 'up', run: () => list?.scrollBy(-1) },
+      { title: 'Scroll requests down', bind: 'down', run: () => list?.scrollBy(1) },
+      { title: 'Previous page of requests', bind: 'pageup', run: () => list?.scrollBy(-height()) },
+      { title: 'Next page of requests', bind: 'pagedown', run: () => list?.scrollBy(height()) },
+      { title: 'Newest request', bind: 'home', run: () => list?.scrollTo(0) },
+      {
+        title: 'Oldest request',
+        bind: 'end',
+        run: () => list?.scrollTo(Number.POSITIVE_INFINITY),
+      },
     ],
   }))
 
-  const fg = context.theme.text.base
-
   return (
-    <box>
-      <SummaryBlock summary={props.summary} fg={fg} />
+    <box
+      paddingLeft={DIALOG_PADDING}
+      paddingRight={DIALOG_PADDING}
+      paddingBottom={1}
+      onSizeChange={function () {
+        setMeasured(this.width)
+      }}
+    >
+      <box flexDirection="row" justifyContent="space-between">
+        <text fg={palette.base} wrapMode="none">
+          <strong>OpenRouter budget</strong>
+        </text>
+        <text fg={palette.muted} wrapMode="none" onMouseUp={() => props.onClose()}>
+          esc
+        </text>
+      </box>
       <text> </text>
-      <text fg={fg}>Requests (newest first)</text>
-      <RequestList entries={props.summary.entries} fg={fg} />
+      <Lines lines={layout().summary} palette={palette} />
       <text> </text>
-      <WalletDetails wallet={props.summary.wallet} fg={fg} />
+      <LineView line={layout().requestsHeading} palette={palette} />
+      <Show when={layout().tableHeader}>
+        {(header) => <LineView line={header()} palette={palette} />}
+      </Show>
+      <scrollbox
+        ref={(element) => {
+          list = element
+        }}
+        height={height()}
+      >
+        <Lines lines={layout().requests} palette={palette} />
+      </scrollbox>
       <text> </text>
-      <text fg={fg}>
-        [r] refresh wallet · [Esc] close · Full history: https://openrouter.ai/activity
-      </text>
+      <Lines lines={layout().footer} palette={palette} />
     </box>
   )
 }

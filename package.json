@@ -48,7 +48,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "fallow": "fallow",
-    "test": "node test/parse.check.ts && node test/decode.check.ts && node test/ledger.check.ts",
+    "test": "node test/parse.check.ts && node test/decode.check.ts && node test/ledger.check.ts && node test/dialog-layout.check.ts",
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run fallow",
     "changeset": "changeset",
     "prepare": "lefthook install"
