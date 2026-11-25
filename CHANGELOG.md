@@ -1,5 +1,23 @@
 # opencode-openrouter-budget
 
+## 0.5.0
+
+### Minor Changes
+
+- [#11](https://github.com/valeriobelli/opencode-openrouter-budget/pull/11) [`5f7dcf4`](https://github.com/valeriobelli/opencode-openrouter-budget/commit/5f7dcf4259024be7368244cbf7e8881db94682a8) Thanks [@valeriobelli](https://github.com/valeriobelli)! - Make the `/openrouter-budget` dialog readable in narrow terminals:
+
+  - Each request takes one line, in aligned columns that adapt to the dialog's width.
+  - Spend and limits sit in two sections, with each figure shown once.
+  - The request list scrolls with ↑↓, PgUp/PgDn, Home/End and the mouse wheel, while the summary and the key hints stay on screen.
+  - Day headings separate requests made on different days.
+  - Unknown BYOK costs are marked with `?` or `unknown`.
+  - The dialog opens wide and centred, as intended. Before, it always opened at OpenCode's medium width of 60 columns, because its size was set before the dialog was shown.
+  - `r` now refreshes the wallet while the dialog is open.
+
+### Patch Changes
+
+- [#12](https://github.com/valeriobelli/opencode-openrouter-budget/pull/12) [`9889244`](https://github.com/valeriobelli/opencode-openrouter-budget/commit/9889244147b51a769b2bf5c4b847536c7848fdd3) Thanks [@valeriobelli](https://github.com/valeriobelli)! - `/openrouter-budget` now shows its "OpenRouter budget unavailable" error toast when the session summary cannot be loaded. Before, the failure was silent.
+
 ## 0.4.0
 
 ### Minor Changes
