@@ -321,19 +321,21 @@ function createRefresher(
   }
 }
 
+// Null when the summary cannot be loaded; the toast is the whole error report,
+// because the command runs the opener without awaiting it.
 async function getSummary(
   deps: { rpc: BudgetRpc; context: TuiContext },
   sessionID?: string,
-): Promise<SummaryResult> {
+): Promise<SummaryResult | null> {
   try {
-    return deps.rpc.summary({ sessionID: sessionID ?? '' })
+    return await deps.rpc.summary({ sessionID: sessionID ?? '' })
   } catch (error) {
     deps.context.ui.toast.show({
       message: `OpenRouter budget unavailable: ${String(error)}`,
       variant: 'error',
     })
 
-    throw new Error(`OpenRouter budget unavailable: ${String(error)}`)
+    return null
   }
 }
 
@@ -341,7 +343,11 @@ function createDialogOpener(deps: { rpc: BudgetRpc; context: TuiContext }): () =
   return async () => {
     const route = deps.context.ui.router.current()
     const sessionID = route.type === 'session' ? route.sessionID : undefined
-    const initial: SummaryResult = await getSummary(deps, sessionID)
+    const initial = await getSummary(deps, sessionID)
+
+    if (!initial) {
+      return
+    }
 
     const [summary, setSummary] = createSignal<SummaryResult>(initial)
     const refresh = createRefresher(deps, setSummary)
